@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  macOS launchd 定时任务模板。
+  每天 08:30 运行一次(汇总前一交易日)。按需修改 Hour/Minute。
+
+  安装:
+    1. 把下面 /PATH/TO/python 换成你的 python 路径 (which python3 的输出)
+    2. 把 /PATH/TO/Fin_Agent 换成包含 pyproject.toml 的仓库根目录
+    3. 拷贝到 ~/Library/LaunchAgents/ 并加载:
+       cp daily_report_agent/com.user.dailyreport.plist ~/Library/LaunchAgents/
+       launchctl load ~/Library/LaunchAgents/com.user.dailyreport.plist
+    4. 手动触发一次测试:
+       launchctl start com.user.dailyreport
+    5. 卸载:
+       launchctl unload ~/Library/LaunchAgents/com.user.dailyreport.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.user.dailyreport</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/PATH/TO/python</string>
+        <string>-m</string>
+        <string>daily_report_agent</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/PATH/TO/Fin_Agent</string>
+
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>8</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/PATH/TO/Fin_Agent/daily_report_agent/reports/cron.log</string>
+    <key>StandardErrorPath</key>
+    <string>/PATH/TO/Fin_Agent/daily_report_agent/reports/cron.err.log</string>
+</dict>
+</plist>

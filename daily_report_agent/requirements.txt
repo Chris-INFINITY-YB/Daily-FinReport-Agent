@@ -1,0 +1,13 @@
+# 数据源
+akshare              # A股行情+新闻(免费免token)
+yfinance             # 美股行情
+finnhub-python       # 美股新闻
+
+# LLM 客户端(OpenAI 兼容)
+openai>=1.0.0
+
+# 配置
+pyyaml
+
+# 推送(HTTP)
+requests

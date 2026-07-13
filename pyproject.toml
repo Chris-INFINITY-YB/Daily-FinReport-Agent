@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "daily-report-agent"
+version = "0.1.0"
+description = "每日抓取关注股票信息并生成中文 Markdown 分析报告"
+readme = "daily_report_agent/README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+online = [
+    "akshare",
+    "yfinance",
+    "finnhub-python",
+    "openai>=1.0.0",
+    "requests",
+]
+test = [
+    "pytest>=8.0,<9",
+]
+
+[project.scripts]
+daily-report-agent = "daily_report_agent.main:cli"
+
+[tool.setuptools]
+packages = [
+    "daily_report_agent",
+    "daily_report_agent.datasource",
+    "daily_report_agent.ingestion",
+    "daily_report_agent.models",
+    "daily_report_agent.pipeline",
+    "daily_report_agent.providers",
+    "daily_report_agent.storage",
+]
+
+[tool.setuptools.package-data]
+daily_report_agent = ["config.yaml"]
+"daily_report_agent.storage" = ["sql/*.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
