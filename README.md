@@ -1,14 +1,13 @@
 # daily_report_agent 开发进度
 
-日期：2026-07-13  
-下一开发日：2026-07-14  
-当前节点：阶段 1-C2 已完成，明天开始阶段 2。
+更新时间：2026-07-14
+当前节点：阶段 2-B3-B1 已完成，阶段 2-B3-B2 连续人工观测待进行。
 
-## 1. 今日完成概览
+`daily_report_agent` 是一个面向多数据源、证据驱动分析的每日市场信息智能体。当前正式
+链路继续使用既有 DataSource；新的 Provider 能力采用契约化、离线测试和旁路观察逐步
+迁移，未经长期验证的数据源不会直接进入分析或报告。
 
-今天完成了项目从“无法稳定启动的脚本”到“可安装、可测试、具备标准模型与可选 SQLite 存储”的基础升级。
-
-当前生产链路为：
+当前正式链路为：
 
 ```text
 DataSource
@@ -20,188 +19,248 @@ DataSource
 → Notifier
 ```
 
-## 2. 阶段 0：恢复可运行性
-
-已完成：
-
-- 修复 Python 包结构和导入路径；
-- 增加 `pyproject.toml` 和正式包定义；
-- 支持 `python -m daily_report_agent`；
-- 建立真正离线、无需 API Key 的 dry-run；
-- 增加 pytest 基线；
-- 更新安装、启动和测试文档；
-- 验证 Python 3.10 与 Python 3.13。
-
-## 3. 阶段 1：可靠数据底座
-
-### 3.1 阶段 1-A：架构审计
-
-- 梳理 `StockData`、新闻、行情、Analyzer 和 Report 的现有数据流；
-- 明确标准模型、质量问题和 SQLite 的最小迁移路线；
-- 确认采用旁路迁移，避免一次性重写生产链路。
-
-### 3.2 阶段 1-B1：标准模型
-
-新增：
-
-- `Security`；
-- `NewsItem`；
-- `MarketSnapshot`；
-- `PriceWindow`；
-- `DataIssue`；
-- `CollectedSecurityData`；
-- Provider Protocol。
-
-所有时间字段统一要求 timezone-aware，未知数值使用 `None`，不再用 `0` 表示缺失。
-
-### 3.3 阶段 1-B2：旧模型适配层
-
-完成：
-
-- `StockData → CollectedSecurityData`；
-- 稳定新闻内容哈希；
-- 旧日期 UTC 标准化；
-- 旧 `StockData.error` 转换为 warning；
-- 缺失行情不再生成伪造的 `0%`；
-- 增加独立质量判断。
-
-### 3.4 阶段 1-B3：标准模型进入分析链路
-
-完成：
-
-- 新增不可变 `AnalysisInput`；
-- 保留旧 `analyze(StockData, llm)` 公开入口；
-- `StockData.error` 不再直接跳过整只股票；
-- 行情失败但新闻存在时继续分析；
-- 新闻失败但行情存在时继续分析；
-- 完全无有效数据或存在阻断性 ERROR 时不调用 LLM；
-- 报告区分未知行情与真实 `0.00%`；
-- 完整数据 Prompt 和 dry-run 报告保持逐字兼容。
-
-### 3.5 阶段 1-C1：SQLite 核心
-
-新增：
-
-- 显式 SQLite 连接与事务管理；
-- `0001_initial` migration；
-- UTC 时间序列化；
-- Security、News、MarketSnapshot、PipelineRun、ProviderCall、RawResponse Repository；
-- 幂等写入、外键、WAL、失败回滚；
-- RawResponse 脱敏写入边界；
-- Repository 单元测试和跨 Repository 事务测试。
-
-数据库表：
+腾讯行情 Shadow 是独立旁路，不在上述正式分析数据流中：
 
 ```text
-schema_migrations
-securities
-security_aliases
-news_items
-news_security_links
-market_snapshots
-pipeline_runs
-provider_calls
-raw_responses
+Tencent QuoteProvider
+→ provider_calls
+→ MarketSnapshot
+→ 可选 SQLite（Shadow 默认关闭）
 ```
 
-未创建事件、分析结果或通知历史表。
+## 当前开发状态
 
-### 3.6 阶段 1-C2：可选存储进入生产编排
+| 阶段 | 状态 | 说明 |
+|---|---|---|
+| 阶段 0：工程稳定化 | 已完成 | Python 包、CLI、离线 dry-run、基础测试 |
+| 阶段 1-A：数据底座审计 | 已完成 | 完成旧数据模型、数据流和存储边界审计 |
+| 阶段 1-B：标准模型与分析兼容 | 已完成 | 标准 Security、News、Market、Issue、AnalysisInput 已建立 |
+| 阶段 1-C：SQLite 存储 | 已完成 | 标准数据持久化及可选生产接入 |
+| 阶段 2-A：Provider 契约 | 已完成 | Quote、News、Profile Provider 契约及 Legacy Façade |
+| 阶段 2-B1：腾讯 QuoteProvider 离线实现 | 已完成 | 代码映射、Parser、Fixture、离线契约测试 |
+| 阶段 2-B2：腾讯受控在线验证 | 已完成 | 在线 Transport、编码、字段和状态 1/51 验证 |
+| 阶段 2-B3-A：腾讯 Shadow 接入 | 已完成 | 默认关闭的旁路观测、ProviderCall 和 Snapshot 保存 |
+| 阶段 2-B3-B1：单次真实 Shadow 验证 | 已完成 | 临时数据库真实请求和幂等验证 |
+| 阶段 2-B3-B2：连续人工观测 | 待进行 | 连续 5～7 个交易日记录稳定性指标 |
 
-正式配置新增：
+### 当前基线
 
-```yaml
-storage:
-  enabled: false
-  path: data/agent.db
+```text
+Git:
+fa85b709b17c2478a80d1101b803f1c93278171b
+
+测试：
+271 passed
+
+验证环境：
+Python 3.10.20
+Python 3.13.9
 ```
-
-完成：
-
-- storage 默认关闭；
-- 旧配置缺少 storage 字段时等价于关闭；
-- dry-run 即使配置开启也不创建数据库；
-- storage 关闭时不加载 SQLite runtime；
-- storage 开启时记录 `pipeline_run`；
-- 保存标准 Security、News 和 MarketSnapshot；
-- 明确不保存 `PriceWindow`；
-- 暂不伪造现有 akshare、yfinance 或 Finnhub 的 provider call；
-- 数据库失败时降级为 warning，Analyzer 和 Report 继续运行；
-- 运行状态支持 `success`、`partial` 和 `failed`。
-
-## 4. 当前验证基线
-
-最终验证结果：
-
-- 测试总数：102；
-- Python 3.13.9：102/102 通过；
-- Python 3.10.20：102/102 通过；
-- `python -m compileall -q daily_report_agent tests`：通过；
-- `python -m daily_report_agent --dry-run`：退出码 0；
-- dry-run 前后均未生成 `.db`、`.sqlite` 或 `.sqlite3`；
-- 未读取真实 API Key；
-- 未调用真实 LLM、网络数据源或通知。
 
 回归哈希：
 
 ```text
-完整数据 Prompt:
+完整数据 Prompt SHA-256:
 7d532b4031a223ec12e888b9e4fa236e313dfc08e20fe0f47c8aa87a49cd9cc3
 
-固定 dry-run 报告:
+固定日期 dry-run SHA-256:
 8069e90b2cb81d5530849de7ccb0b85e1070d8506258c4e5628375dbf8b539f0
 ```
 
-## 5. 当前明确未实施的内容
+这两个哈希分别用于发现 Prompt 业务语义和固定 dry-run 报告输出的意外变化。
 
-以下能力尚未实施，不能视为已经完成：
+## 已完成的基础能力
 
-- 腾讯行情 Provider；
-- 东财新闻 Provider；
-- 巨潮公告 Provider；
-- 财联社快讯 Provider；
-- Provider 路由、重试、限流、缓存、熔断和降级；
-- 增量抓取；
-- 新闻近似去重和事件聚类；
-- 事件、分析结果和通知历史存储；
-- 结构化日志和在线监控；
-- 报告中的真实来源与原文链接。
+### 工程与离线运行
 
-## 6. 明天：阶段 2 开发计划
+- 项目可安装为正式 Python 包并支持 `python -m daily_report_agent`；
+- dry-run 无需 API Key，不调用真实 LLM、网络数据源或通知；
+- Python 3.10 和 Python 3.13 均纳入验证；
+- pytest 默认禁止网络访问，Provider 在线验证使用独立、显式入口。
 
-阶段 2 目标是“接入核心 A 股数据能力”。建议先完成阶段 2-A 审计和第一个 Provider 的离线契约，再逐个扩展，避免同时引入多个不稳定接口。
+### 标准数据与分析兼容
 
-建议顺序：
+- 已建立 `Security`、`NewsItem`、`MarketSnapshot`、`PriceWindow`、`DataIssue`、
+  `CollectedSecurityData` 和 `AnalysisInput`；
+- 时间字段要求 timezone-aware，未知数值使用 `None`，真实 `0.0` 保持为零；
+- 旧 `StockData` 通过适配层进入标准模型；
+- 行情或新闻单侧失败时可继续分析，完全无有效数据时不调用 LLM；
+- 旧分析入口、Prompt 和固定 dry-run 输出保持兼容。
 
-1. 审计 `a-stock-data` Skill、现有 Provider Protocol 和当前 A 股调用链；
-2. 定义 Provider 返回契约、错误映射、限流与降级边界；
-3. 优先实现腾讯批量行情 Provider；
-4. 使用脱敏 Fixture 编写完全离线的契约测试；
-5. 再接入东财个股新闻；
-6. 将巨潮公告建模为独立来源类型；
-7. 最后增加财联社和东财全球资讯备用源；
-8. 接入 provider_calls 运行记录，但不得伪造调用；
-9. 完成在线冒烟测试与字段变化检查；
-10. 在证据真实可用后，再调整报告中的来源和原文链接展示。
+### SQLite 与 Provider 契约
 
-阶段 2 的主要验收目标：
+- SQLite 提供显式连接、事务、migration、外键和幂等写入；
+- storage 默认关闭，dry-run 即使配置开启也不会创建数据库；
+- 已建立 `QuoteProvider`、`NewsProvider`、`ProfileProvider`、标准 Provider 错误层和
+  `LegacyDataSourceFacade`；
+- Provider 契约测试完全离线，真实网络能力必须由受控入口显式开启；
+- Provider 迁移边界和字段证据详见
+  [`docs/provider_migration.md`](docs/provider_migration.md)。
 
-- A 股新闻至少有两个可切换来源；
-- 公告作为独立类型进入标准模型；
-- 单一来源失败不会阻断整份日报；
-- 关键新闻具有真实来源和 URL；
-- Provider 契约测试完全离线；
-- 在线冒烟测试可以发现字段变化；
-- 原有 102 项测试、Prompt 哈希和 dry-run 哈希继续保持。
+## 腾讯财经 QuoteProvider
 
-## 腾讯行情 Shadow（开发者功能）
+腾讯财经目前只负责 A 股单点行情快照 `MarketSnapshot`，已确认使用的语义包括：
 
-腾讯 QuoteProvider 仅提供默认关闭的旁路观测，不替换 AkShare，也不进入分析、Prompt、
-报告或通知。开发者必须同时开启本地 storage 和 `providers.tencent_quote.shadow_enabled`
-才会执行；dry-run 始终强制关闭。启用前请先阅读 `docs/provider_migration.md`，并使用
-只读汇总脚本检查观测数据。该功能尚不是正式或备用行情源。
+- 当前价格；
+- 昨日收盘价；
+- 当日涨跌幅；
+- 行情观察时间；
+- 数据来源标识。
 
-## 7. 明天开始前检查
+腾讯不是公告源、公司新闻源或财联社类市场快讯源，也不是项目最终唯一数据源。当前接入
+用于验证真实 Provider 架构、标准存储、错误隔离和长期稳定性观测。
+
+```text
+MarketSnapshot ≠ PriceWindow
+```
+
+腾讯 `MarketSnapshot.pct_change` 是单点行情中的当日涨跌语义，不代表当前报告所使用的
+多日区间收益，不能写入 `PriceWindow.period_pct_change`，也不能直接替换 AkShare
+历史行情。
+
+> 腾讯 QuoteProvider 当前处于 Shadow 观测阶段，默认关闭，不参与正式分析和报告生成。
+
+腾讯行情不会进入 Analyzer、Prompt、Report 或通知。完成人工观测并通过单独验收前，
+腾讯不能被视为正式行情源或备用行情源。
+
+默认配置保持：
+
+```yaml
+storage:
+  enabled: false
+
+providers:
+  tencent_quote:
+    shadow_enabled: false
+```
+
+### 单次真实 Shadow 验证
+
+2026-07-14 完成阶段 2-B3-B1 单次受控验证：
+
+| 项目 | 结果 |
+|---|---|
+| 存储 | 临时 SQLite，验证后清理 |
+| 固定证券 | `600519`、`300750`、`000001` |
+| 逻辑 `fetch_quotes()` | 1 次 |
+| 底层 HTTP 请求 | 1 次，成功 |
+| ProviderCall | `provider=tencent-finance`、`operation=quote_shadow` |
+| ProviderCall 结果 | `status=success`、`item_count=3`、`retry_count=0` |
+| `duration_ms` | 1451 |
+| MarketSnapshot | 保存 3 条，source 均为 `tencent-finance` |
+| RawResponse | 新增 0 条 |
+| 幂等性 | 重复本地保存未产生重复快照 |
+| 汇总脚本 | 只读查询通过，查询前后数据库内容未改变 |
+
+本次验证没有使用正式配置或正式数据库，没有加载 LLM、通知和旧 DataSource。验证后临时
+数据库、临时配置和运行文件均已清理。README 不保存真实价格、完整请求 URL、原始响应
+或 request fingerprint。
+
+一次成功只能证明最小真实链路可用，不能替代多个交易日的稳定性观察。
+
+## 腾讯 Shadow 人工观测计划
+
+下一阶段为“阶段 2-B3-B2：连续 5～7 个交易日人工观测”，当前尚未开始，也尚未完成。
+不能用一次运行代替连续观察，也不能在单次 Codex 会话中声称已经完成多日观测。
+
+执行边界：
+
+- 每个交易日只运行一次，推荐在 A 股收盘后执行；
+- 使用独立观察数据库，不使用正式数据库；
+- 固定选择 3～5 个 CN 标的，不进行循环扫描；
+- 不调用真实 LLM，不使用正式通知；
+- 不把腾讯数据送入 Analyzer、Prompt、Report 或通知；
+- 不自动替换 AkShare，不把腾讯声明为正式或备用行情源；
+- 每日执行后保存安全指标记录，不保存原始响应或真实价格。
+
+### 每日观察指标
+
+| 指标 | 目的 |
+|---|---|
+| ProviderCall success/empty/failed | 接口可用性 |
+| `duration_ms` | 调用延迟 |
+| `item_count` | 返回完整度 |
+| 403/429 | 阻断或限流 |
+| timeout/network error | 网络稳定性 |
+| Parser issues | 响应协议变化 |
+| `observed_at` 新鲜度 | 行情时效 |
+| 请求证券缺失数 | 数据完整度 |
+| Snapshot 新增数 | 持久化是否正常 |
+| 重复快照数 | 幂等表现 |
+| `raw_responses` 新增数 | 必须始终为 0 |
+| 正式 PipelineRun 状态 | 必须不受腾讯影响 |
+| 正式报告是否正常 | 验证业务隔离 |
+
+### 暂停条件
+
+出现以下任一情况时暂停在线观察，先记录安全差异并调查：
+
+- 出现 HTTP 403 或 429；
+- 连续两次网络失败；
+- 响应协议或字段位置变化；
+- Parser 无法识别新状态；
+- 多个证券持续缺失；
+- `observed_at` 明显陈旧；
+- 出现 raw response 非预期写入；
+- 正式 PipelineRun 状态受到影响；
+- 腾讯数据进入 Analyzer、Prompt、Report 或通知；
+- 出现无法解释的重复或覆盖。
+
+### 只读汇总命令
+
+```bash
+python scripts/tencent_quote_shadow_summary.py \
+  --database <观察数据库路径> \
+  --days 7
+```
+
+汇总脚本只读 SQLite，不联网、不输出真实价格、不修改数据库、不读取 `.env`，也不调用
+LLM 或通知。
+
+### 每日观测记录模板
+
+| 字段 | 记录 |
+|---|---|
+| 日期 | YYYY-MM-DD |
+| 执行时间 |  |
+| 请求证券数 |  |
+| ProviderCall status |  |
+| `item_count` |  |
+| `duration_ms` |  |
+| 403 / 429 |  |
+| timeout / network |  |
+| Parser issues |  |
+| 缺失证券数 |  |
+| `observed_at` 新鲜度 |  |
+| Snapshot 新增数 |  |
+| `raw_responses` 新增数 | 0 |
+| 正式 PipelineRun 状态 |  |
+| 正式报告是否正常 |  |
+| 备注 |  |
+
+## 长期多数据源路线
+
+项目目标是从多方网站采集可追溯信息，再由标准模型和证据驱动分析组合结果，而不是依赖
+腾讯或任何单一网站。不同信息类型应由独立 Provider 承担，不能因为字段外观相似而混合
+金融语义。
+
+后续路线包括：
+
+1. 完成腾讯 QuoteProvider 的 5～7 个交易日人工观测并单独验收；
+2. 迁移 Profile Provider，保持证券静态资料与动态行情分离；
+3. 接入至少两个可切换的 A 股公司新闻来源；
+4. 将交易所或巨潮公告建模为独立公告来源；
+5. 接入财联社类市场快讯和其他市场资讯来源；
+6. 为多源证据增加来源标识、原文链接、时间和质量问题；
+7. 在契约、离线测试和在线证据充分后，再设计路由、降级、限流、缓存和增量抓取；
+8. 只有通过独立验收的数据，才允许进入 Analyzer、Prompt、Report 或通知。
+
+长期架构要求单一来源失败不能阻断整份日报，来源之间能够交叉验证，报告中的结论能够
+追溯到具体证据。腾讯只承担其中一个单点行情 Provider 的候选角色。
+
+## 开发者验证
+
+常规开发验证必须保持离线：
 
 ```bash
 python -m pytest
@@ -209,11 +268,12 @@ python -m compileall -q daily_report_agent tests
 python -m daily_report_agent --dry-run
 ```
 
-开始阶段 2 前应再次确认：
+开始下一阶段前应再次确认：
 
-- 默认配置仍为 `storage.enabled: false`；
-- dry-run 未创建数据库；
-- 单元测试不联网；
+- 默认配置仍为 `storage.enabled: false` 和 `shadow_enabled: false`；
+- 普通 pytest 和 dry-run 不联网；
+- dry-run 不创建数据库；
 - Fixture 不包含 API Key、token、Cookie 或未脱敏响应；
-- 不修改现有金融判断和 Prompt 业务语义；
-- 每接入一个 Provider，都必须有独立契约测试和失败降级测试。
+- Prompt 和固定 dry-run 哈希保持不变；
+- 不修改现有金融判断和报告业务语义；
+- 每接入一个 Provider，都有独立契约测试、失败隔离测试和明确的在线门禁。
