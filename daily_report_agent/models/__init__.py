@@ -5,6 +5,7 @@ from .collection import CollectedSecurityData
 from .issues import DataIssue, IssueCategory, IssueSeverity
 from .market import MarketSnapshot, PriceWindow
 from .news import NewsItem, is_timezone_aware
+from .profile import SecurityProfile
 from .security import Security
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     "NewsItem",
     "PriceWindow",
     "Security",
+    "SecurityProfile",
     "is_timezone_aware",
 ]
