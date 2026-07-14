@@ -194,6 +194,13 @@ storage:
 - 在线冒烟测试可以发现字段变化；
 - 原有 102 项测试、Prompt 哈希和 dry-run 哈希继续保持。
 
+## 腾讯行情 Shadow（开发者功能）
+
+腾讯 QuoteProvider 仅提供默认关闭的旁路观测，不替换 AkShare，也不进入分析、Prompt、
+报告或通知。开发者必须同时开启本地 storage 和 `providers.tencent_quote.shadow_enabled`
+才会执行；dry-run 始终强制关闭。启用前请先阅读 `docs/provider_migration.md`，并使用
+只读汇总脚本检查观测数据。该功能尚不是正式或备用行情源。
+
 ## 7. 明天开始前检查
 
 ```bash

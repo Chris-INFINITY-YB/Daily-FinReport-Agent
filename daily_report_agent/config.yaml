@@ -18,6 +18,14 @@ storage:
   enabled: false
   path: data/agent.db
 
+# ============ 腾讯行情 Shadow 旁路(默认关闭) ============
+providers:
+  tencent_quote:
+    shadow_enabled: false
+    timeout_seconds: 10
+    batch_size: 20
+    max_symbols: 20
+
 # ============ LLM ============
 llm:
   provider: deepseek           # deepseek | minimax | openai

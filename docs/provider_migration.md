@@ -201,3 +201,36 @@ Transport 明确处理：
 
 成交量、成交额、换手率、PE、PB 和市值虽然出现在完整响应中，单位、缩放和口径尚未
 完成独立证据验证，因此继续保持 `None`，本阶段不扩展 Parser。
+
+## 阶段 2-B3-A：默认关闭的 Shadow 编排
+
+腾讯 QuoteProvider 已进入正式运行环境的独立 Shadow 旁路，但配置默认关闭。只有非
+dry-run、`providers.tencent_quote.shadow_enabled=true`、storage 正常开启且 watchlist
+包含 CN 标的时才执行。dry-run、storage 关闭和纯 US watchlist 均不会加载在线
+Transport，也不会创建 ProviderCall。
+
+Shadow 在正式 `pipeline_run` 建立后执行，结果只写入现有 `provider_calls`、
+`securities` 和 `market_snapshots`。一条 ProviderCall 表示一次逻辑
+`TencentQuoteProvider.fetch_quotes()`，`retry_count` 固定为 0，fingerprint 是将
+`market:symbol` 排序并以换行连接后的 SHA-256。它不包含名称、价格、URL、路径或时间。
+Provider 使用配置的逻辑 `batch_size`；若单个逻辑批次超过阶段 2-B2 Transport 的 5 个
+代码安全上限，则按最多 5 个代码顺序拆成必要的底层请求，不并发、不重试。因此一条
+ProviderCall 不等同于一个 HTTP 请求。
+
+`provider_calls.status` 表示逻辑 Provider 调用是否产生可用结果：有快照为 `success`，
+无异常但无快照为 `empty`，ProviderError 为 `failed`。有效快照同时伴随 ERROR issue
+或单条存储失败时，ProviderCall 仍为 `success`，更细的 ShadowResult 为 `partial`。
+该状态不是正式 `pipeline_runs.status`；腾讯的 failed、empty 或 partial 均不会改变
+日报状态、退出码、Analyzer、Prompt、Report 或通知。
+
+快照继续保持单点 `MarketSnapshot` 语义，按
+`security_id + source + observed_at` 幂等保存；不生成 PriceWindow，不覆盖 AkShare 或
+legacy 数据，不保存 raw response。只读历史汇总可运行：
+
+```bash
+python scripts/tencent_quote_shadow_summary.py --database daily_report_agent/data/agent.db --days 7
+```
+
+该工具以 SQLite URI 只读模式工作，不运行 migration、不联网、不输出价格。腾讯仍不是
+正式或备用行情源；是否晋级必须在后续阶段 2-B3-B 人工开启并连续观察 5～7 个交易日后
+另行验收。

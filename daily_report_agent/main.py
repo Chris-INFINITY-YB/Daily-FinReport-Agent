@@ -27,6 +27,7 @@ from .pipeline.runner import (
     persist_analysis_input,
     start_run_context,
 )
+from .pipeline.tencent_quote_shadow import maybe_run_tencent_quote_shadow
 
 
 DRY_RUN_ANALYSIS = (
@@ -97,6 +98,12 @@ def run(config_path: str, do_notify: bool, dry_run: bool):
     partial = run_context.storage_failed
 
     try:
+        maybe_run_tencent_quote_shadow(
+            config=cfg,
+            watchlist=cfg.get("watchlist", ()),
+            run_context=run_context,
+            dry_run=dry_run,
+        )
         llm = None if dry_run else build_llm(cfg)
         sections = []
         for item in cfg.get("watchlist", []):

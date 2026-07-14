@@ -1,10 +1,24 @@
 from __future__ import annotations
 
 from pathlib import Path
+import socket
+import urllib.request
 
 import pytest
 
 from daily_report_agent.storage.database import Database
+
+
+@pytest.fixture(autouse=True)
+def block_unexpected_network(monkeypatch):
+    """普通 pytest 全局禁止 socket 和 urllib 在线请求。"""
+
+    def fail(*args, **kwargs):
+        raise AssertionError("ordinary pytest must remain offline")
+
+    monkeypatch.setattr(socket, "socket", fail)
+    monkeypatch.setattr(urllib.request, "urlopen", fail)
+    monkeypatch.setattr(urllib.request.OpenerDirector, "open", fail)
 
 
 @pytest.fixture
