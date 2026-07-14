@@ -131,3 +131,73 @@ endpoint 或正式配置。导入腾讯模块和构造 Provider 都不会联网�
 | 市值位置 | `market_cap` | 缩放单位待确认 | `None` | 暂不映射 |
 
 固定 Fixture 位于 `tests/fixtures/providers/tencent/`，只用于解析契约，不会在线刷新。
+
+## 阶段 2-B2 在线协议差异记录
+
+2026-07-14（Asia/Shanghai）的首次受控请求返回 HTTP 200、GBK 文本，共 3 条记录且
+每条 88 个字段。响应顺序与请求一致：`sh600519,sz000001,sz300750`。原 Parser 只解析
+出 `sh600519`，另外两条产生 `malformed_record`。结合腾讯当前公开响应样本，差异定位为
+完整行情记录首字段存在已观察到的 `51` 变体，而 2-B1 Parser 只允许 `1`。修复前先以
+独立失败测试固定该差异；不自动覆盖既有 Fixture，也不保存在线原始响应。
+
+### 2-B2 实施状态
+
+在线 Transport 使用 Python 标准库 `urllib`，endpoint 固定为
+`https://qt.gtimg.cn/`，查询通过 `urlencode()` 的 `q` 参数构造。该形式由腾讯当前公开
+响应和[腾讯云开发者社区近期示例](https://cloud.tencent.com/developer/article/2509319)
+交叉确认。Transport 不接受任意 endpoint，只允许 HTTPS `qt.gtimg.cn`，且不会跟随到
+非腾讯域名。
+
+在线能力只通过 `scripts/tencent_quote_smoke.py --allow-network` 显式启用。没有该参数时
+返回非零；脚本最多允许 3 个明确证券、单批、无自动重试、无并发，不读取正式配置、
+`.env` 或 watchlist，也不访问数据库、LLM、通知和 `provider_calls`。
+
+Transport 明确处理：
+
+- Header 声明的 GBK/GB2312/GB18030/UTF-8；缺少 charset 时固定回退 GB18030；
+- 解码失败和超出 128 KiB 的响应；
+- timeout、连接/DNS、403、429、其他 HTTP 错误；
+- 最终 URL 和重定向目标域名；
+- 固定安全 message，底层原因只通过异常链保留。
+
+导入腾讯模块、导入在线 Transport、构造 Transport 或 Provider 均不会联网；只有调用
+`fetch_quotes()` 才执行请求。
+
+### 受控在线验证结果
+
+2026-07-14（Asia/Shanghai）对 `600519,000001,300750` 进行了初始验证和修复后复核，
+每次均为一个串行批次，无自动重试。最终复核结果：
+
+| 项目 | 结果 |
+|---|---|
+| HTTP | 200 |
+| Content-Type | `text/html; charset=GBK` |
+| 解码 | GBK |
+| 正文字节数 | 1591 |
+| 记录数 | 3 |
+| 响应顺序 | `sh600519,sz000001,sz300750` |
+| 首字段状态 | `1,51,51` |
+| 每条字段数 | `88,88,88` |
+| Parser 输出 | 3 个 `MarketSnapshot`，0 issues |
+| 403 / 429 / 重定向 | 均未发生 |
+
+首次验证暴露 `51` 状态变体后，先增加失败测试，再将 Parser 的已确认完整记录状态扩展
+为 `{1, 51}`，并新增手工脱敏的 `quote_status_51.txt`。没有自动保存或覆盖在线响应。
+
+### 字段语义与 Fixture 对比
+
+| 场景 | 2-B1 Fixture | 在线响应 | 结论 |
+|---|---|---|---|
+| 记录前缀 | `v_sh` / `v_sz` | `v_sh` / `v_sz` | 一致 |
+| 记录分隔 | 分号 | 分号 | 一致 |
+| 首字段状态 | `1` | `1` 和 `51` | 已补充变体 Fixture 和 Parser 测试 |
+| `symbol` 位置 | 2 | 2 | 已确认 |
+| `price` 位置 | 3 | 3 | 已确认 |
+| `previous_close` 位置 | 4 | 4 | 已确认 |
+| `observed_at` 位置 | 30 | 30 | 已确认，格式 `YYYYMMDDHHMMSS` |
+| `pct_change` 位置 | 32 | 32 | 已确认，三个标的交叉计算均一致 |
+| 编码 | Fixture 为 UTF-8 测试文件 | HTTP 正文为 GBK | Transport 显式解码后交给同一 Parser |
+| 字段数 | 最小样本多为 49 | 88 | Parser 只读取已确认位置；新增 88 字段状态变体样本 |
+
+成交量、成交额、换手率、PE、PB 和市值虽然出现在完整响应中，单位、缩放和口径尚未
+完成独立证据验证，因此继续保持 `None`，本阶段不扩展 Parser。

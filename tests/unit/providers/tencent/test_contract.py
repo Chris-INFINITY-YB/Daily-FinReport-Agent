@@ -31,9 +31,10 @@ def test_tencent_descriptor_is_stable_quote_only_cn() -> None:
 def test_tencent_modules_have_no_online_or_price_window_dependencies() -> None:
     source_dir = ROOT / "daily_report_agent" / "providers" / "tencent"
     source = "\n".join(path.read_text(encoding="utf-8") for path in source_dir.glob("*.py"))
-    assert "requests" not in source
-    assert "httpx" not in source
-    assert "urllib" not in source
+    assert "import requests" not in source
+    assert "from requests" not in source
+    assert "import httpx" not in source
+    assert "from httpx" not in source
     assert "PriceWindow" not in source
     assert "provider_calls" not in source
     assert "Database" not in source
@@ -68,4 +69,5 @@ def test_production_entry_points_do_not_import_tencent_provider() -> None:
     for path in protected:
         content = path.read_text(encoding="utf-8").lower()
         assert "tencentquoteprovider" not in content
+        assert "tencentonlinequotetransport" not in content
         assert "tencent-finance" not in content

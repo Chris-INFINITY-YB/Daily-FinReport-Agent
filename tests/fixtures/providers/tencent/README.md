@@ -12,6 +12,7 @@ Header、token、用户标识或请求日志，不会在测试时在线刷新，
 | `quote_single_sz.txt` | 深圳单证券 | 深圳前缀和相同标准字段 |
 | `quote_batch_mixed.txt` | 沪深混合且响应逆序 | 根据响应代码匹配并按请求顺序输出 |
 | `quote_zero_change.txt` | 真实零涨跌 | `pct_change=0.0` 不变成缺失值 |
+| `quote_status_51.txt` | 在线观察到的完整行情状态变体 | 首字段 `51`、88 字段、核心行情位置不变 |
 | `quote_suspended_or_partial.txt` | 部分字段缺失、无可靠时间 | 缺失数值为 `None`，时间回退并产生 issue |
 | `quote_empty.txt` | 明确的空数据记录 | 成功无数据，不伪造快照 |
 | `quote_malformed.txt` | 一条合法、一条损坏 | 部分成功并产生 PARSE warning |
@@ -23,6 +24,7 @@ Fixture 保留腾讯文本记录的波浪线分隔位置。本阶段只映射经
 
 | 位置 | 含义 | 标准字段 | 单位/解释 |
 |---:|---|---|---|
+| 0 | 记录状态 | Parser 协议判断 | 在线已观察到 `1` 和 `51` 两种完整行情值 |
 | 2 | 六位证券代码 | `symbol` | 无单位，移除 `sh/sz` 响应前缀 |
 | 3 | 当前价格 | `price` | CNY/股 |
 | 4 | 昨收 | `previous_close` | CNY/股 |
@@ -35,3 +37,6 @@ Fixture 保留腾讯文本记录的波浪线分隔位置。本阶段只映射经
 已验证的 CN A 股支持范围固定为 `CNY`，`source` 固定为 `tencent-finance`。
 
 空字符串和 `--` 表示缺失，不能转换成零；文本 `0.00` 是真实零值。
+
+`quote_status_51.txt` 是首次受控在线冒烟发现差异后手工构造的脱敏最小样本，不是在线
+响应的自动拷贝；它保留实测 88 字段形状，但没有保存 Header、URL 或原始正文。

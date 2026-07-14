@@ -27,6 +27,7 @@ from .symbols import build_tencent_symbol_list
 _ASSIGNMENT_PATTERN = re.compile(r'^v_((?:sh|sz)\d{6})="([^"]*)"$')
 _SHANGHAI_TZ = ZoneInfo("Asia/Shanghai")
 _MISSING_VALUES = frozenset({"", "--"})
+_SUPPORTED_RECORD_STATUSES = frozenset({"1", "51"})
 
 
 class _RecordParseError(ValueError):
@@ -94,7 +95,7 @@ def _parse_record(
     fields = payload.split("~")
     if len(fields) <= 32:
         raise _RecordParseError("quote record has too few fields")
-    if fields[0].strip() != "1":
+    if fields[0].strip() not in _SUPPORTED_RECORD_STATUSES:
         raise _RecordParseError("quote record status is unsupported")
     symbol = fields[2].strip()
     if not re.fullmatch(r"\d{6}", symbol):

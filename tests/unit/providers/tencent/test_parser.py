@@ -79,6 +79,15 @@ def test_real_zero_is_not_treated_as_missing(tencent_fixture) -> None:
     assert result.items[0].pct_change == 0.0
 
 
+def test_parser_accepts_observed_full_quote_status_51(tencent_fixture) -> None:
+    result = parse_tencent_quote_response(
+        tencent_fixture("quote_status_51.txt"),
+        requested=(security("000001"),),
+        fetched_at=FETCHED_AT,
+    )
+    assert result.items[0].symbol == "000001"
+
+
 def test_partial_record_keeps_none_and_uses_aware_fetched_at(
     tencent_fixture,
 ) -> None:
