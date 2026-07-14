@@ -15,6 +15,7 @@ from .errors import (
     provider_error_to_issue,
 )
 from .legacy import LegacyDataSourceFacade, legacy_descriptor
+from .tencent import TENCENT_QUOTE_DESCRIPTOR, TencentQuoteProvider
 
 __all__ = [
     "LegacyDataSourceFacade",
@@ -33,6 +34,8 @@ __all__ = [
     "ProviderUnavailableError",
     "ProviderValidationError",
     "QuoteProvider",
+    "TENCENT_QUOTE_DESCRIPTOR",
+    "TencentQuoteProvider",
     "legacy_descriptor",
     "provider_error_to_issue",
 ]

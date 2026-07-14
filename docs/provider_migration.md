@@ -83,10 +83,51 @@ MarketSnapshot ≠ PriceWindow
 
 ## 后续迁移顺序
 
-1. 2-B1：腾讯 `QuoteProvider` 离线实现与契约测试。
+1. 2-B1：腾讯 `QuoteProvider` 离线实现与契约测试（已完成）。
 2. 2-B2：腾讯 `QuoteProvider` 受控在线冒烟。
 3. 2-C：Profile Provider 迁移。
 4. 2-D：News Provider 迁移。
 5. 2-E：Provider 编排、降级和 `provider_calls` 接入。
 
 在 2-E 之前不允许伪造或写入 `provider_calls`。
+
+## 阶段 2-B1：腾讯 QuoteProvider 离线状态
+
+`TencentQuoteProvider` 已完成离线结构、代码映射、分批、文本解析、标准异常映射和契约
+测试。它仅接受显式注入的 `TencentQuoteTransport`，本阶段没有默认在线 Transport、
+endpoint 或正式配置。导入腾讯模块和构造 Provider 都不会联网，只有调用
+`fetch_quotes()` 才会调用已注入的 Transport。
+
+当前边界保持不变：
+
+- 尚未进行在线冒烟；
+- 尚未进入 `main.py`、DataSource、pipeline、Analyzer 或报告；
+- 尚未进入降级路由；
+- 尚未记录 `provider_calls`；
+- 尚未替换 AkShare；
+- 尚未改变报告使用的多日 `PriceWindow`；
+- 腾讯结果只表示单点 `MarketSnapshot`。
+
+### 支持的证券代码
+
+- 上海：`600`、`601`、`603`、`605`、`688` 开头的六位代码，映射为 `shXXXXXX`；
+- 深圳：`000`、`001`、`002`、`003`、`300`、`301` 开头的六位代码，映射为 `szXXXXXX`；
+- 北交所及其他未经确认的号段显式拒绝，不按名称或未验证规则猜测交易所。
+
+### 腾讯字段映射
+
+| 腾讯文本位置 | 标准字段 | 单位 | 缺失处理 | 可信状态 |
+|---:|---|---|---|---|
+| 2 | `symbol` | 无 | 记录无效 | 已固定，并与响应 `sh/sz` 前缀交叉校验 |
+| 3 | `price` | CNY/股 | `None` | 已固定 |
+| 4 | `previous_close` | CNY/股 | `None` | 已固定 |
+| 30 | `observed_at` | Asia/Shanghai | 使用 aware `fetched_at` 并产生 warning | 已固定 |
+| 32 | `pct_change` | 百分比数值 | `None` | 已固定，真实 `0.00` 保留为 `0.0` |
+| 成交量位置 | `volume` | 手/股口径不稳定 | `None` | 暂不映射 |
+| 成交额位置 | `amount` | 缩放单位不稳定 | `None` | 暂不映射 |
+| 换手率位置 | `turnover` | 公开协议口径待确认 | `None` | 暂不映射 |
+| PE 位置 | `pe_ttm` | 动态/TTM 口径待确认 | `None` | 暂不映射 |
+| PB 位置 | `pb` | 位置契约待确认 | `None` | 暂不映射 |
+| 市值位置 | `market_cap` | 缩放单位待确认 | `None` | 暂不映射 |
+
+固定 Fixture 位于 `tests/fixtures/providers/tencent/`，只用于解析契约，不会在线刷新。
