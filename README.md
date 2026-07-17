@@ -173,6 +173,26 @@ providers:
 - 不自动替换 AkShare，不把腾讯声明为正式或备用行情源；
 - 每日执行后保存安全指标记录，不保存原始响应或真实价格。
 
+### 专用观测命令
+
+观测入口默认禁止联网，必须显式提供 `--allow-network`、独立 SQLite 路径和证券代码：
+
+```bash
+python scripts/tencent_quote_shadow_observe.py \
+  --allow-network \
+  --db-path /tmp/tencent_quote_shadow.sqlite3 \
+  --symbols 600519 300750 000001
+```
+
+推荐固定使用 3～5 个证券，并在每个交易日收盘后最多执行一次。命令不会读取正式
+`config.yaml` 或 watchlist，也不会调用旧 DataSource、LLM、报告或通知；当前正式默认
+数据库路径会被明确拒绝。未传 `--allow-network` 或证券参数非法时，命令会在创建
+Transport 和打开数据库之前失败。
+
+重复执行会复用同一个观察库，并沿用 `security_id + source + observed_at` 的快照幂等
+约束。命令只输出安全计数、缺失证券、Issue 标识、`run_id` 和 `provider_call_id`，不输出
+原始响应或真实价格。
+
 ### 每日观察指标
 
 | 指标 | 目的 |
@@ -216,6 +236,9 @@ python scripts/tencent_quote_shadow_summary.py \
 
 汇总脚本只读 SQLite，不联网、不输出真实价格、不修改数据库、不读取 `.env`，也不调用
 LLM 或通知。
+
+观测命令实现完成只表示具备连续人工观测入口，不代表腾讯 QuoteProvider 已完成正式验收
+或可以进入正式分析、报告和路由。
 
 ### 每日观测记录模板
 
