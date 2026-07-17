@@ -1,7 +1,8 @@
 # daily_report_agent 开发进度
 
-更新时间：2026-07-14
-当前节点：阶段 2-B3-B1 已完成，阶段 2-B3-B2 连续人工观测待进行。
+更新时间：2026-07-17
+当前节点：阶段 2-B3-B3 单次受控真实观测已完成；阶段 2-B4 连续人工观察已完成准备，
+Day 1 尚未开始。
 
 `daily_report_agent` 是一个面向多数据源、证据驱动分析的每日市场信息智能体。当前正式
 链路继续使用既有 DataSource；新的 Provider 能力采用契约化、离线测试和旁路观察逐步
@@ -41,20 +42,21 @@ Tencent QuoteProvider
 | 阶段 2-B2：腾讯受控在线验证 | 已完成 | 在线 Transport、编码、字段和状态 1/51 验证 |
 | 阶段 2-B3-A：腾讯 Shadow 接入 | 已完成 | 默认关闭的旁路观测、ProviderCall 和 Snapshot 保存 |
 | 阶段 2-B3-B1：单次真实 Shadow 验证 | 已完成 | 临时数据库真实请求和幂等验证 |
-| 阶段 2-B3-B2：连续人工观测 | 待进行 | 连续 5～7 个交易日记录稳定性指标 |
+| 阶段 2-B3-B2：Shadow 专用观测入口 | 已完成 | 独立 CLI、安全联网门禁、独立 SQLite 和离线测试 |
+| 阶段 2-B3-B3：单次受控真实观测 | 已完成 | 固定 3 个证券完成一次真实请求和只读验收 |
+| 阶段 2-B4：连续人工观察 | 准备完成 | 持久观察库已初始化，连续 5～7 个交易日 Day 1 待开始 |
 
 ### 当前基线
 
 ```text
-Git:
-fa85b709b17c2478a80d1101b803f1c93278171b
+腾讯 Shadow 实现基线提交：
+98229c67e1a33f83260684b081c7097d92c76c03
 
 测试：
-271 passed
+282 passed
 
-验证环境：
+本阶段验证环境：
 Python 3.10.20
-Python 3.13.9
 ```
 
 回归哈希：
@@ -68,6 +70,26 @@ Python 3.13.9
 ```
 
 这两个哈希分别用于发现 Prompt 业务语义和固定 dry-run 报告输出的意外变化。
+
+### 2026-07-17 开发与验证进度
+
+- 新增 `scripts/tencent_quote_shadow_observe.py`，必须显式提供 `--allow-network`、独立
+  SQLite 路径和证券代码；未授权联网时不会创建 Transport、发送请求或打开数据库；
+- 新增 `tests/unit/test_tencent_quote_shadow_observe.py`，覆盖安全门禁、证券校验、稳定去重、
+  Fixture 成功、部分缺失、Parser/Provider 错误和重复执行幂等语义；
+- 完整离线测试为 282 项通过，`git diff --check` 通过；本阶段使用
+  `PYTHONDONTWRITEBYTECODE=1` 和 `-p no:cacheprovider` 避免测试生成额外缓存文件；
+- 专用观测入口已提交为 `98229c67e1a33f83260684b081c7097d92c76c03`，正式配置、
+  AkShare 路由、LLM、报告和通知均未修改；
+- 2026-07-17 完成一次 B3-B3 受控真实观察：固定请求 3 个证券，返回 3 个证券，逻辑
+  `fetch_quotes()` 1 次，Transport 基础调用 1 次，ProviderCall 新增 1 条，
+  MarketSnapshot 新增 3 条，RawResponse 新增 0 条，DataIssue 0 条，`retry_count=0`；
+- 观察库只读验收和汇总通过，未发现缺失证券或重复快照，汇总前后主数据库哈希一致；
+- B4 已在项目目录之外初始化独立的零业务记录持久观察库。B3-B3 样本保留为单次预检，
+  不计入 B4 连续 5～7 个交易日；B4 Day 1 从下一个确认的交易日收盘后开始。
+
+上述结果只证明专用 Shadow 入口和一次固定样本的真实链路满足当前契约，不代表腾讯
+QuoteProvider 已通过正式验收，也不授权进入正式分析、报告、通知或数据源路由。
 
 ## 已完成的基础能力
 
@@ -158,10 +180,11 @@ providers:
 
 一次成功只能证明最小真实链路可用，不能替代多个交易日的稳定性观察。
 
-## 腾讯 Shadow 人工观测计划
+## 腾讯 Shadow 连续人工观察计划
 
-下一阶段为“阶段 2-B3-B2：连续 5～7 个交易日人工观测”，当前尚未开始，也尚未完成。
-不能用一次运行代替连续观察，也不能在单次 Codex 会话中声称已经完成多日观测。
+下一阶段为“阶段 2-B4：连续 5～7 个交易日人工观察”。独立持久库和每日操作边界已准备
+完成，但 Day 1 尚未开始。2026-07-17 的 B3-B3 单次观察只作为预检样本，不计入 B4。
+不能用一次运行代替连续观察，也不能在单次 Codex 会话中声称已经完成多日观察。
 
 执行边界：
 
@@ -180,7 +203,7 @@ providers:
 ```bash
 python scripts/tencent_quote_shadow_observe.py \
   --allow-network \
-  --db-path /tmp/tencent_quote_shadow.sqlite3 \
+  --db-path /path/to/tencent_shadow_continuous.sqlite3 \
   --symbols 600519 300750 000001
 ```
 
@@ -188,6 +211,10 @@ python scripts/tencent_quote_shadow_observe.py \
 `config.yaml` 或 watchlist，也不会调用旧 DataSource、LLM、报告或通知；当前正式默认
 数据库路径会被明确拒绝。未传 `--allow-network` 或证券参数非法时，命令会在创建
 Transport 和打开数据库之前失败。
+
+连续观察必须使用项目目录之外的持久独立数据库，每天复用同一路径；不得使用 `/tmp`
+临时库承载 B4，不得删除、覆盖或为了重试另建观察库。当天无论成功或失败都不得再次
+运行真实观测命令。
 
 重复执行会复用同一个观察库，并沿用 `security_id + source + observed_at` 的快照幂等
 约束。命令只输出安全计数、缺失证券、Issue 标识、`run_id` 和 `provider_call_id`，不输出
@@ -216,7 +243,7 @@ Transport 和打开数据库之前失败。
 出现以下任一情况时暂停在线观察，先记录安全差异并调查：
 
 - 出现 HTTP 403 或 429；
-- 连续两次网络失败；
+- 任意一次网络失败、超时或连接异常；
 - 响应协议或字段位置变化；
 - Parser 无法识别新状态；
 - 多个证券持续缺失；
@@ -231,11 +258,11 @@ Transport 和打开数据库之前失败。
 ```bash
 python scripts/tencent_quote_shadow_summary.py \
   --database <观察数据库路径> \
-  --days 7
+  --days 30
 ```
 
 汇总脚本只读 SQLite，不联网、不输出真实价格、不修改数据库、不读取 `.env`，也不调用
-LLM 或通知。
+LLM 或通知。使用 30 个日历日窗口可以覆盖可能跨周末的 5～7 个交易日观察周期。
 
 观测命令实现完成只表示具备连续人工观测入口，不代表腾讯 QuoteProvider 已完成正式验收
 或可以进入正式分析、报告和路由。
