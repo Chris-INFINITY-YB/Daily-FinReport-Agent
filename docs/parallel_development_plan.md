@@ -176,10 +176,26 @@
 
 ### P2：实现第一个标准 News Provider 的离线能力
 
-- [ ] **P2-01 选择并记录首个公司新闻来源**
+- [x] **P2-01 选择并记录首个公司新闻来源（2026-07-18 已完成）**
   - 优先迁移当前旧链路已经使用的公司新闻能力；
   - 明确它只负责公司新闻，不冒充公告或市场快讯；
   - 固化 Provider ID、`source_type`、时间口径、URL 和 external ID 证据。
+  - 首个来源固定为 Eastmoney，Provider ID 为 `eastmoney`，市场为 `cn`，
+    `source_type` 固定为 `news`；AkShare `stock_news_em` 只是旧链路调用入口；
+  - 业务范围仅为按六位 ASCII 数字证券代码查询的 A 股个股 company-related news，
+    不表示公告、交易所披露、市场快讯或研报；
+  - AkShare `1.18.46` 静态源码确认 article code 存在于内部响应并用于形成公开链接，但
+    最终 DataFrame 不保留该 code，因此当前 `external_id=None`，不得从链接或行号反推；
+  - 只消费 Transport 明确提供的公开链接，不在项目内复制或猜测链接拼接规则；
+  - 无时区新闻时间后续按 `Asia/Shanghai` 解释，精确原始格式仍等待 observed Fixture；
+  - 字段、哈希、结果语义及证据缺口见
+    [`cn_news_provider_contract.md`](cn_news_provider_contract.md)。
+
+阶段性说明（2026-07-18）：P2-01 只完成固定版本第三方源码的静态证据核验和离线契约
+设计；没有调用新闻函数或进行在线验证，没有制作 observed Fixture，也没有实现 News
+Transport、Parser 或 Provider。P2-02～P2-05 均未开始。该状态不授权进入正式
+DataSource、Analyzer、Prompt、Report、通知或任何生产/备用路由。
+
 - [ ] **P2-02 实现 News Transport 与 Parser 分离**
   - Transport 只负责获取响应；
   - Parser 只负责解析传入内容；
