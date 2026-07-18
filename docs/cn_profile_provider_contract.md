@@ -1,7 +1,7 @@
 # CN Profile Provider 字段契约与证据边界
 
 更新时间：2026-07-18
-状态：P1-03 离线骨架已完成；P1-04 受控观察失败已记录，无在线 Transport，尚无 CN Profile 脱敏 Fixture
+状态：P1-03/P1-05 离线能力已完成；P1-04 仍未完成，无在线 Transport，尚无 CN Profile 脱敏 Fixture
 
 本文只固定 CN Profile Provider 的身份、字段、结果和证据门禁。它不改变现有
 [`CNDataSource`](../daily_report_agent/datasource/cn.py)，也不授权网络请求、生产接入或
@@ -148,6 +148,36 @@ AkShare 缺陷都只能列为未验证候选原因，不能据此归因。`JSOND
 本次失败不改变第 1 节证据等级：`name` 和 `industry` 仍为 E1，不能升级到 E3；
 `item/value` 结构、真实字段类型与缺失形态仍未验证。P1-04 保持未完成。任何后续尝试都
 必须作为新的受控观察单独审批、单独计数和单独记录，不能作为本次调用的重试或继续执行。
+
+### 3.6 P1-05 显式离线验收入口
+
+完成日期：2026-07-18
+
+[`eastmoney_profile_offline_check.py`](../scripts/eastmoney_profile_offline_check.py)
+提供始终离线的命令行验收入口。它只读取显式指定的本地 JSON 行记录列表，通过只读
+Fixture Transport 调用正式 `EastmoneyProfileProvider`，再经过现有 Parser 和
+`SecurityProfile` 模型生成安全摘要；它不提供 `--allow-network` 或任何在线 Transport，
+也不读取 `.env`、正式配置或 watchlist，不打开数据库，不生成报告或通知。
+
+从仓库根目录执行最小合成示例：
+
+```bash
+python scripts/eastmoney_profile_offline_check.py \
+  --fixture tests/fixtures/providers/eastmoney/profile_synthetic_minimal.json \
+  --symbol 600519 \
+  --name SYNTHETIC_SECURITY
+```
+
+成功输出只包含 `eastmoney` Provider ID、执行标志、item/issue 数量、安全 issue code 和
+存在的标准字段名，不输出证券名称、行业值或 Fixture 原文。退出码 `0` 表示 Provider
+成功完成，包括部分资料或成功空结果；退出码 `1` 表示 Provider/Parser 或内部执行失败；
+退出码 `2` 表示 CLI 输入或 Fixture 被拒绝。
+
+示例文件及其边界见
+[`tests/fixtures/providers/eastmoney/README.md`](../tests/fixtures/providers/eastmoney/README.md)。
+该 Fixture 是人工构造的 synthetic 示例，不是 2026-07-18 失败请求的响应，也不是
+observed Fixture。它只证明离线调用链可以重复执行，不证明真实 `item/value` 结构、字段
+类型、空值或证券身份，因此 `name` 和 `industry` 仍为 E1，P1-04 仍未完成。
 
 ## 4. 字段证据表
 

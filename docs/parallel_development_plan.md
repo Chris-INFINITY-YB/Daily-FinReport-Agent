@@ -154,11 +154,13 @@
   - 字段名或结构异常；
   - 上游异常与敏感错误文本脱敏；
   - 市场不匹配和非法证券输入。
-- [ ] **P1-05 增加显式离线验收入口或最小示例**
-  - 默认不联网；
-  - 不读取正式配置；
-  - 不写数据库；
-  - 不进入 Analyzer、Report 和通知。
+- [x] **P1-05 增加显式离线验收入口或最小示例（2026-07-18 已完成）**
+  - 新增始终离线的 `scripts/eastmoney_profile_offline_check.py`；
+  - 只接受显式本地 synthetic JSON Fixture，不提供 `--allow-network` 或在线 Transport；
+  - 通过 Fixture Transport 调用正式 Provider、Parser 和标准模型，不绕过验收链；
+  - 不读取正式配置，不写数据库，不进入 Analyzer、Report 和通知；
+  - 合成 Fixture 不提升字段证据等级，P1-04 仍保持未完成；
+  - 使用方法与边界见 [`cn_profile_provider_contract.md`](cn_profile_provider_contract.md)。
 
 验收：Profile Provider 可完全通过 Fixture 验证；旧 DataSource、腾讯 Shadow、Prompt 和
 报告输出无变化。
