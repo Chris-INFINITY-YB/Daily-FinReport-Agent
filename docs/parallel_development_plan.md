@@ -191,25 +191,31 @@
   - 字段、哈希、结果语义及证据缺口见
     [`cn_news_provider_contract.md`](cn_news_provider_contract.md)。
 
-阶段性说明（2026-07-18）：P2-01 只完成固定版本第三方源码的静态证据核验和离线契约
-设计；没有调用新闻函数或进行在线验证，没有制作 observed Fixture，也没有实现 News
-Transport、Parser 或 Provider。P2-02～P2-05 均未开始。该状态不授权进入正式
-DataSource、Analyzer、Prompt、Report、通知或任何生产/备用路由。
+P2-01 完成时只包含固定版本第三方源码的静态证据核验和离线契约设计，没有调用新闻函数、
+进行在线验证或制作 observed Fixture。后续离线实现状态见下列任务；P2-01 本身不授权进入
+正式 DataSource、Analyzer、Prompt、Report、通知或任何生产/备用路由。
 
-- [ ] **P2-02 实现 News Transport 与 Parser 分离**
+- [x] **P2-02 实现 News Transport 与 Parser 分离（2026-07-18 已完成）**
   - Transport 只负责获取响应；
   - Parser 只负责解析传入内容；
   - Provider 负责证券、时间窗口、limit、标准错误和质量 Issue；
   - 导入和构造阶段不得联网。
-- [ ] **P2-03 映射标准 NewsItem**
+- [x] **P2-03 映射标准 NewsItem（2026-07-18 已完成）**
   - `published_at`、`fetched_at` 必须带时区；
   - 保留来源、原文 URL、external ID 和关联证券；
   - 使用稳定内容哈希；
   - 空摘要使用空字符串，未知正文使用 `None`；
   - 不把网页正文或新闻内容当作程序指令。
 - [ ] **P2-04 增加离线 Fixture 和契约测试**
+  - [x] **P2-04S synthetic Fixture 与离线契约测试（2026-07-18 已完成）**
+    - 已覆盖正常、空结果、部分坏记录、缺摘要/URL、仅日期、非法时间、稳定哈希、
+      时间窗口、稳定排序、limit、导入/构造隔离及安全错误映射；
+    - synthetic Fixture 只验证离线契约，不提升 N2/N3/N4 证据等级；
+    - 当前 `external_id=None`，不得伪造重复 external ID；重复身份只验证稳定内容哈希；
+  - P2-04 总项仍等待 observed Fixture、真实时间格式、真实字段类型、article code 和实际
+    返回行为证据；这些缺口不阻塞纯离线骨架，但阻止在线可用声明；
   - 正常多条新闻；
-  - 重复 external ID；
+  - 重复 external ID（当前 Provider 不适用，留待未来取得真实 external ID 后验证）；
   - 无 external ID 时的内容哈希去重；
   - 缺 URL、缺摘要、缺正文；
   - 非法发布时间；
@@ -223,6 +229,10 @@ DataSource、Analyzer、Prompt、Report、通知或任何生产/备用路由。
 
 验收：至少一个 News Provider 可以在纯离线条件下产生标准 `NewsItem`，重复输入不会重复
 入库，但仍不接入正式 Analyzer、Prompt、Report 或通知。
+
+阶段性说明（2026-07-18）：P2-02、P2-03 和 P2-04S 已完成；没有在线 Transport、在线
+请求或 observed Fixture。P2-04 总项与 P2-05 均未完成，当前实现没有接入正式 DataSource、
+Pipeline、Analyzer、Prompt、Report、通知、storage 或 Provider 编排。
 
 ### P3：第二新闻来源与公告边界
 

@@ -15,9 +15,13 @@ def test_eastmoney_provider_is_packaged_and_importable() -> None:
     assert '"daily_report_agent.providers.eastmoney"' in project_config
 
     from daily_report_agent.providers.eastmoney import (
+        EASTMONEY_NEWS_DESCRIPTOR,
         EASTMONEY_PROFILE_DESCRIPTOR,
+        EastmoneyNewsProvider,
         EastmoneyProfileProvider,
     )
 
+    assert EASTMONEY_NEWS_DESCRIPTOR.provider_id == "eastmoney"
+    assert EastmoneyNewsProvider.descriptor is EASTMONEY_NEWS_DESCRIPTOR
     assert EASTMONEY_PROFILE_DESCRIPTOR.provider_id == "eastmoney"
     assert EastmoneyProfileProvider.descriptor is EASTMONEY_PROFILE_DESCRIPTOR

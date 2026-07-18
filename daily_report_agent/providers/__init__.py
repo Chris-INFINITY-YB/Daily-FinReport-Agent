@@ -14,12 +14,19 @@ from .errors import (
     ProviderValidationError,
     provider_error_to_issue,
 )
-from .eastmoney import EASTMONEY_PROFILE_DESCRIPTOR, EastmoneyProfileProvider
+from .eastmoney import (
+    EASTMONEY_NEWS_DESCRIPTOR,
+    EASTMONEY_PROFILE_DESCRIPTOR,
+    EastmoneyNewsProvider,
+    EastmoneyProfileProvider,
+)
 from .legacy import LegacyDataSourceFacade, legacy_descriptor
 from .tencent import TENCENT_QUOTE_DESCRIPTOR, TencentQuoteProvider
 
 __all__ = [
+    "EASTMONEY_NEWS_DESCRIPTOR",
     "EASTMONEY_PROFILE_DESCRIPTOR",
+    "EastmoneyNewsProvider",
     "EastmoneyProfileProvider",
     "LegacyDataSourceFacade",
     "NewsProvider",

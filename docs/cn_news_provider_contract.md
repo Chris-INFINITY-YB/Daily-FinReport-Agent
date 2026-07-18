@@ -1,12 +1,12 @@
 # CN 公司新闻 Provider 字段契约与证据边界
 
 更新时间：2026-07-18
-状态：P2-01 已完成；仅有静态源码证据和离线设计，P2-02～P2-05 尚未开始
+状态：P2-01～P2-03、P2-04S 已完成；P2-04 仍缺 observed Fixture，P2-05 尚未开始
 
 本文只选择首个 A 股个股公司新闻来源，并固定后续 News Provider 的身份、业务范围、
-字段、时间、结果和证据门禁。本文不实现 Transport、Parser 或 Provider，不创建 Fixture，
-不改变现有 [`CNDataSource`](../daily_report_agent/datasource/cn.py)，也不授权在线请求、
-生产接入或持久化。通用迁移边界见
+字段、时间、结果和证据门禁，并记录纯离线实现状态。本文不改变现有
+[`CNDataSource`](../daily_report_agent/datasource/cn.py)，也不授权在线请求、生产接入或
+持久化。通用迁移边界见
 [`provider_migration.md`](provider_migration.md)，实施顺序见
 [`parallel_development_plan.md`](parallel_development_plan.md)。
 
@@ -31,8 +31,8 @@ legacy_client_entry: AkShare stock_news_em(symbol=...)
 - 市场只允许 `cn`，请求证券代码只允许正则 `^[0-9]{6}$` 所表示的六位 ASCII 数字；
 - 标准 `source` 固定为 `eastmoney`，`source_type` 固定为 `news`；
 - 当前 AkShare 公开返回边界没有 article code，`external_id` 固定为 `None`；
-- 当前只定义离线契约，尚未在线验证、尚无 observed Fixture，也没有任何 News Transport、
-  Parser 或 Provider 实现。
+- 当前已实现显式注入、无在线实现的 News Transport Protocol、纯 Parser 和 Provider，
+  并以 synthetic Fixture 完成离线契约测试；尚未在线验证，也尚无 observed Fixture。
 
 `source_type="news"` 的含义由本节的 company-related news 业务范围共同约束。它不是
 “所有新闻”的通用分类，也不能在后续被解释为公告、全市场资讯、快讯或研报。
@@ -44,10 +44,11 @@ legacy_client_entry: AkShare stock_news_em(symbol=...)
 | N0：仓库标准契约 | 标准模型、Protocol、Repository 和调用方身份已经固定 | 可固定标准字段、结果语义、幂等边界和请求身份 |
 | N1：旧链路本地证据 | 当前项目确实调用或读取的函数与字段 | 只证明旧实现曾依赖该公开边界 |
 | N2：第三方静态源码证据 | 对固定版本 AkShare 源码的只读检查 | 可记录客户端请求/解析/公开字段的形成方式，不证明在线可用 |
-| N3：脱敏 observed Fixture | 由受控真实响应制作并以离线测试固定 | 当前不存在；P2-04 才能建立 |
+| N3：脱敏 observed Fixture | 由受控真实响应制作并以离线测试固定 | 当前不存在；P2-04 总项仍等待该证据 |
 | N4：受控在线验证 | 明确授权、计数和安全记录的在线观察 | 当前未进行，也不由本文授权 |
 
-本轮最高证据等级是 N2。静态源码能说明 AkShare `1.18.46` 写了什么，不能证明
+当前最高证据等级仍是 N2。synthetic Fixture 只验证 N0 设计和代码行为，不提升证据等级。
+静态源码能说明 AkShare `1.18.46` 写了什么，不能证明
 Eastmoney 当前可访问、真实响应仍符合该结构、字段值格式稳定、返回数量与函数说明一致，
 或任一真实证券能够取得新闻。本文中的“确认”若未另行限定，均只表示静态边界已确认。
 
@@ -141,9 +142,9 @@ article code 和链接的形成方式。静态归属成立不等于在线接口�
 | 当前没有独立全文证据 | `content` | 固定为 `None`；搜索结果“新闻内容”不得放入正文 | `None`；属于已知能力限制 | 无全文证据 | 只有独立证据确认取得完整正文后才能修改 |
 | 公开 `新闻链接`；由客户端基于内部 `code` 形成 | `url` | 只消费 Transport 边界明确给出的非空绝对 HTTP(S) URL 并 trim；不得自行拼接、反推或改写 | 缺失、非文本、非绝对 HTTP(S) 或不安全 scheme：`None`，保留记录并产生安全 Issue | N2 形成方式 | 原始 JSON 未提供独立 URL；链接可访问性、规范化、重定向和长期稳定性均未在线验证 |
 | `发布时间` / 内部 `date` | `published_at` | 解析经 Fixture 批准的格式；无时区的 A 股新闻时间按 `Asia/Shanghai` 解释，结果必须 aware | 缺失或无法安全解释：跳过记录并产生 Issue；仅日期见第 6 节 | N1 + N2 透传关系 | 静态源码不解析时间，原始字符串的精确格式、精度、时区和空值形态均未确认 |
-| 注入 clock | `fetched_at` | Provider 调用注入 clock 一次，所有本次合法记录复用该 aware 时间 | 非 `datetime`、naive 或无有效 UTC offset：请求级 `ProviderValidationError` | N0 | P2-04 需固定 clock 和失败测试 |
+| 注入 clock | `fetched_at` | Provider 调用注入 clock 一次，所有本次合法记录复用该 aware 时间 | 非 `datetime`、naive 或无有效 UTC offset：请求级 `ProviderValidationError` | N0 + synthetic 测试 | observed Fixture 不影响 clock 语义 |
 | 首个 CN 来源契约 | `language` | 固定 `zh`；只描述本来源，不执行通用语言检测 | 不能缺失 | N0 设计 | 不保证每条搜索结果绝无外文片段 |
-| 规范化 `title`、`summary`、`content` | `content_hash` | 使用第 7 节定义的确定性 SHA-256，输出 64 位小写十六进制 | 任一必需输入无法安全形成则跳过记录 | N0 设计 | P2-03/P2-04 尚未实现和测试 |
+| 规范化 `title`、`summary`、`content` | `content_hash` | 使用第 7 节定义的确定性 SHA-256，输出 64 位小写十六进制 | 任一必需输入无法安全形成则跳过记录 | N0 + synthetic 测试 | 真实文本形态仍等待 observed Fixture |
 | 请求 `Security.symbol` | `related_symbols` | 只放入已校验并规范化的请求代码，固定为单元素 tuple；不读取新闻文字猜更多证券 | 请求代码非法则请求级验证失败 | N0；公开 `关键词` 仅作 N2 辅助证据 | 响应中的关键词不得覆盖请求身份；多证券关联不在本来源契约内 |
 | 当前无评估 | `source_reliability` | 固定 `None`，不使用媒体名、排序或搜索位置推算评分 | `None` | N0 设计 | 需独立来源质量评估后才能给分 |
 
@@ -154,11 +155,23 @@ publisher 字段。它不能覆盖 `source="eastmoney"`，不能被塞入 `sourc
 ## 6. 发布时间口径
 
 N2 静态源码只把内部 `date` 改名为 `发布时间`，没有执行日期解析、时区附加或精度校验；
-因此当前没有可声称的真实原始时间格式。P2-04 必须用脱敏 observed Fixture 记录原始字符
-串、值类型、是否含秒、是否含时区和缺失形态，再把允许格式列入 Parser 测试。未经该证据，
+因此当前没有可声称的真实原始时间格式。纯离线 Parser 只接受以下明确标记为
+synthetic contract formats 的最小集合：
+
+```text
+YYYY-MM-DD HH:MM:SS
+YYYY-MM-DDTHH:MM:SS
+YYYY-MM-DD
+YYYY-MM-DDTHH:MM:SS[.ffffff]Z
+YYYY-MM-DDTHH:MM:SS[.ffffff]±HH:MM
+```
+
+这些格式是离线契约输入，不是 Eastmoney 真实格式观察。P2-04 必须用脱敏 observed
+Fixture 记录原始字符串、值类型、是否含秒、是否含时区和缺失形态，再把允许格式列入
+Parser 测试。未经该证据，
 不得宽松猜测任意日期格式。
 
-后续时间规则固定如下：
+时间规则固定如下：
 
 - 原始值含明确 offset/时区且格式已获准时，保留其表示的真实时刻并生成 aware datetime；
 - 已获准格式没有时区时，按 `ZoneInfo("Asia/Shanghai")` 解释，不能按系统本地时区或 UTC
@@ -187,6 +200,10 @@ N2 静态源码只把内部 `date` 改名为 `发布时间`，没有执行日期
 6. 对完整载荷计算 SHA-256，`content_hash` 保存 64 位小写十六进制摘要；
 7. 当前 `NewsItem.id` 保存 `eastmoney:` 与该摘要的直接拼接。
 
+离线固定测试向量：`title="SYNTHETIC TITLE"`、
+`summary="SYNTHETIC SUMMARY"`、`content=None` 的摘要为
+`c59a9bde03672412d23004c61f5414ceba5e3529721c10bd25b52b71a11b3474`。
+
 长度前缀和 `None` 标记用于消除字段边界歧义。来源不进入内容哈希，因为 Repository 已按
 `source` 作用域使用 `(source, content_hash)` 作为无 external ID 时的幂等身份；URL、
 发布时间、抓取时间、请求证券和文章来源也不进入内容哈希，避免非内容元数据变化破坏
@@ -209,54 +226,93 @@ AkShare `1.18.46` 的 N2 静态源码表明：Eastmoney JSON 记录包含内部 
 边界，必须先修订本文、增加脱敏 Fixture，并独立证明 article code 和 URL 的语义；不能以
 本轮静态发现为由直接把内部 `code` 暴露为 external ID。
 
-## 9. 后续 Parser/Provider 结果语义
+## 9. Parser/Provider 结果语义
 
-本节提前定义行为，但本轮不实现代码。操作标识建议固定为 `fetch_news`；成功请求返回
+操作标识固定为 `fetch_news`；成功请求返回
 [`ProviderResult`](../daily_report_agent/providers/contracts.py)，请求级失败抛出现有
 [`ProviderError`](../daily_report_agent/providers/errors.py) 子类。
 
 | 场景 | 后续行为 |
 |---|---|
-| 请求成功且无记录 | 返回空 `items`，不是异常；可产生安全 `INFO/MISSING_DATA` Issue，建议 code=`news_not_found` |
+| 请求成功且无记录 | 返回空 `items`，不是异常；产生安全 `INFO/MISSING_DATA` Issue，code=`news_not_found` |
 | 单条缺失摘要、URL 或其他非关键字段 | 保留合法记录，按字段产生或聚合安全 `DataIssue`；不得在 Issue 中放标题、URL 或响应片段 |
-| 单条缺少标题 | 跳过该条，产生安全 `WARNING/PARSE` Issue，建议 code=`missing_news_title` |
-| 单条发布时间无法安全解释 | 跳过该条，产生安全 `WARNING/PARSE` Issue，建议 code=`invalid_published_at` |
+| 单条缺少标题 | 跳过该条，产生安全 `WARNING/PARSE` Issue，code=`missing_news_title` |
+| 单条发布时间无法安全解释 | 跳过该条，产生安全 `WARNING/PARSE` Issue，code=`invalid_published_at` |
 | 部分记录损坏 | 保留全部合法记录并返回 Issues；坏记录不能使合法记录丢失 |
-| 顶层响应结构无法识别 | 后续抛 `ProviderParseError`，建议 code=`invalid_news_response` |
-| 市场或证券输入不支持 | 后续抛 `ProviderValidationError`，建议 code=`unsupported_market` 或 `invalid_symbol` |
-| 网络或超时 | 后续映射为 `ProviderNetworkError` 或 `ProviderTimeoutError` |
-| 限流 | 后续映射为 `ProviderRateLimitError` |
-| 阻断或不可用 | 后续映射为 `ProviderBlockedError` 或 `ProviderUnavailableError` |
+| 顶层响应结构无法识别 | 抛 `ProviderParseError`，code=`invalid_news_response` |
+| 市场或证券输入不支持 | 抛 `ProviderValidationError`，code=`unsupported_market` 或 `invalid_symbol` |
+| 网络或超时 | 映射为 `ProviderNetworkError` 或 `ProviderTimeoutError` |
+| 限流 | 映射为 `ProviderRateLimitError` |
+| 阻断或不可用 | 映射为 `ProviderBlockedError` 或 `ProviderUnavailableError` |
+
+当前记录级安全 Issue 固定为：
+
+- `invalid_news_record`、`missing_news_title`、`invalid_published_at`：
+  `WARNING/PARSE`，跳过坏记录；
+- `published_time_date_only`：`WARNING/PARSE`，保留记录但明确只有日期精度；
+- `missing_news_summary`：`WARNING/MISSING_DATA`，保留记录且 `summary=""`；
+- `missing_news_url`、`invalid_news_url`：`WARNING/MISSING_DATA`，保留记录且
+  `url=None`；
+- `news_not_found`：`INFO/MISSING_DATA`，表示 Transport 空结果或过滤后为空，不是失败。
 
 安全错误和 Issue 只能包含 Provider ID、operation、安全 code、字段名、数量和可公开的错误
 类别。不得包含底层异常文本、traceback、完整 URL、查询参数、请求头、Cookie、Token、
 响应正文或真实新闻内容。底层异常只通过异常链保留。`DataIssue` 用于成功响应中的空结果、
 记录级跳过和字段质量，不得把请求级失败伪装为成功 Issue。
 
-## 10. P2-02～P2-05 的后续证据门禁
+### 9.1 时间窗口、排序和 limit
 
-P2-01 的完成只表示来源和契约已选定。后续至少仍需：
+Provider 先让 Parser 解析所有行，再按以下顺序处理：
 
-1. P2-02 明确 Transport 是消费 AkShare 公开 DataFrame，还是经单独评审直接消费 JSONP；
-2. P2-02 实现导入/构造不联网的 Transport、Parser、Provider 分层和安全错误映射；
-3. P2-03 按本文生成标准 `NewsItem`、aware 时间、稳定哈希和请求证券关联；
-4. P2-04 用受控真实响应制作最小脱敏 observed Fixture，固定顶层结构、字段类型、空值、
+1. 使用闭区间 `since <= published_at <= until` 过滤；
+2. 窗口外合法记录不返回，也不因此产生解析 Issue；
+3. 窗口内记录按 `published_at` 降序排列；
+4. 相同发布时间保持原始响应顺序；
+5. 最后应用正整数 `limit`；较小 limit 不触发分页、重试或第二次 Transport 调用；
+6. 最终没有 item 时返回成功空结果和安全 `news_not_found` Issue。
+
+`since`、`until` 必须 aware 且 `since <= until`；不同时区按它们表示的真实时刻比较。
+非法证券、时间窗口、limit 或 clock 均在调用 Transport 前失败。每次合法请求只调用 clock
+一次、Transport 最多一次，同次合法 item 共用一个 `fetched_at`。
+
+## 10. 离线实现状态与后续证据门禁
+
+P2-02、P2-03 和 P2-04S 已完成：
+
+- [`news_transport.py`](../daily_report_agent/providers/eastmoney/news_transport.py) 只定义
+  同步只读、显式注入的公开行 Protocol，没有默认或在线实现；
+- [`news_parser.py`](../daily_report_agent/providers/eastmoney/news_parser.py) 不依赖
+  AkShare 或 pandas，不联网、不读文件，只解析传入 tuple 行；
+- [`news.py`](../daily_report_agent/providers/eastmoney/news.py) 负责请求验证、单次 clock、
+  单次 Transport、安全错误映射、窗口、排序和 limit；
+- `news_synthetic_multiple.json` 由测试代码加载，包含正常、缺字段、仅日期、窗口外和相同
+  时间的虚构记录；正式 Parser 不读取 Fixture 文件；
+- 导入、构造、正常/空/部分坏记录、时间、哈希、窗口、排序、limit 和错误映射均有纯离线
+  测试。
+
+P2-04 总项仍未完成，后续至少仍需：
+
+1. 用受控真实响应制作最小脱敏 observed Fixture，固定顶层结构、字段类型、空值、
    时间格式、标题高亮、摘要长度、URL 形态、article code 和空/坏记录行为；
-5. P2-04 验证函数说明与静态单页数量之间的实际行为，但不得用一次观察声明稳定 SLA；
-6. P2-05 验证 `NewsRepository.insert_or_get_news()` 的 `(source, content_hash)` 幂等行为、
+2. 验证函数说明与静态单页数量之间的实际行为，但不得用一次观察声明稳定 SLA；
+3. P2-05 另行验证 `NewsRepository.insert_or_get_news()` 的 `(source, content_hash)` 幂等行为、
    `news_security_links` 和失败事务隔离；
-7. 任一在线观察必须另行明确授权，限制证券、次数、重试和保留内容，并记录为在线证据。
+4. 任一在线观察必须另行明确授权，限制证券、次数、重试和保留内容，并记录为在线证据。
+
+当前 `external_id=None`，所以“重复 external ID”用例不适用于本 Provider；不得为测试伪造
+external ID。当前重复身份只验证稳定内容哈希，Repository external ID 幂等性留给 P2-05。
 
 observed Fixture 必须手工脱敏，不保存 Cookie、Token、完整请求 URL、完整请求头、查询参数
-或未脱敏响应正文。本轮没有创建 synthetic 或 observed Fixture，也没有调用新闻函数。
+或未脱敏响应正文。当前只有 synthetic Fixture，没有 observed Fixture，也没有调用新闻
+函数或执行在线验证。
 
 ## 11. 当前明确不做
 
-- 不新增 News Provider Python 实现、Transport、Parser、Fixture 或正式配置；
+- 不实现在线 Transport、Fixture loader 生产能力或正式配置；
 - 不调用 `stock_news_em()`，不发起网络请求，不执行第三方 Markdown 中的代码；
 - 不修改 `main.py`、正式 DataSource、Pipeline、Analyzer、Prompt、Report 或 Notifier；
 - 不新增数据库 migration，不写 `provider_calls` 或 `raw_responses`；
 - 不启用 storage、腾讯 Shadow 或任何生产/备用路由；
 - 不访问腾讯 B4 观察库；
-- 不把 N2 静态源码核验描述为在线可用性、真实响应或字段稳定性验证；
+- 不把 N2 静态源码核验或 synthetic 测试描述为在线可用性、真实响应或字段稳定性验证；
 - 不进入公告、交易所披露、市场快讯、研报、多源去重或正式业务接入。
