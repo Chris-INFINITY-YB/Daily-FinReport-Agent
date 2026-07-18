@@ -1,7 +1,7 @@
 # CN Profile Provider 字段契约与证据边界
 
 更新时间：2026-07-18
-状态：P1-03A 来源归属门禁已通过；尚未实现 Provider，尚无 CN Profile 脱敏 Fixture
+状态：P1-03 离线骨架已完成；无在线 Transport，尚无 CN Profile 脱敏 Fixture
 
 本文只固定 CN Profile Provider 的身份、字段、结果和证据门禁。它不改变现有
 [`CNDataSource`](../daily_report_agent/datasource/cn.py)，也不授权网络请求、生产接入或
@@ -96,7 +96,28 @@ version: None
 本结论只适用于上述版本和 SHA-256 对应的源码。升级 AkShare 或源码哈希变化时必须重新
 核验模块说明和上游主机名。它不证明接口当前可用，也不证明真实响应结构、`item/value`
 列、`股票简称`、`行业`、缺失值、证券身份或任何字段映射；这些仍须由 P1-04 脱敏 Fixture
-和离线测试确认。P1-03A 也不代表 P1-03 Provider 骨架已经实现。
+和离线测试确认。P1-03A 结论本身只确认来源归属；离线骨架状态另见下一节。
+
+### 3.4 P1-03B 离线骨架状态
+
+完成日期：2026-07-18
+
+P1-03B 已建立严格离线、显式注入的代码骨架：
+
+- [`constants.py`](../daily_report_agent/providers/eastmoney/constants.py) 固定仅支持
+  `PROFILE`/`cn` 的 `eastmoney` Descriptor，`version` 保持 `None`；
+- [`transport.py`](../daily_report_agent/providers/eastmoney/transport.py) 只定义同步只读
+  Protocol，输入为标准化代码，输出为 `tuple[Mapping[str, object], ...]`；没有默认实现；
+- [`parser.py`](../daily_report_agent/providers/eastmoney/parser.py) 只消费传入行记录，
+  精确识别候选 `股票简称` 和 `行业`，不接受 DataFrame，不联网；
+- [`profile.py`](../daily_report_agent/providers/eastmoney/profile.py) 负责 CN 输入、六位 ASCII
+  数字代码、aware clock、Transport 调用和安全错误映射；
+- 导入和构造均不会调用 Transport，也不会加载 AkShare、pandas 或在线客户端；只有
+  `fetch_profile()` 会调用显式注入的 Transport。
+
+Parser 对内联 Fake 行的支持只是接口骨架测试，不把 `name` 或 `industry` 从 E1 升级为
+E3。当前没有真实或脱敏响应 Fixture，也没有在线 Transport；不得据此声称 Eastmoney
+Profile 已在线可用或真实字段映射已经验证。
 
 ## 4. 字段证据表
 
@@ -131,8 +152,9 @@ version: None
 
 ## 5. 当前支持边界
 
-在 P1-04 Fixture 验证前，只有身份、来源和时间规则得到固定；没有任何上游资料字段
-获准进入生产映射。Fixture 验证后，首批拟支持字段仅为 `name` 和 `industry`。
+P1-03B 的纯 Parser 已按精确候选名称处理内联 Fake 行，但这不构成上游字段证据。在
+P1-04 Fixture 验证前，只有身份、来源和时间规则得到固定；没有任何上游资料字段获准
+进入真实 Transport 映射。Fixture 验证后，首批拟支持字段仅为 `name` 和 `industry`。
 `exchange`、`currency` 和 `description` 继续保持 `None`，直到各自取得独立证据。
 
 “完整资料”按当前获准支持的字段集合判断，而不是要求所有标准字段非空。例如首批只在
@@ -178,9 +200,10 @@ P1-04 至少需要以下脱敏 Fixture 和测试，才能把 E1 字段升级为 
 Fixture 必须手工脱敏，不保存 Cookie、Token、完整请求 URL 或未脱敏原始响应。P1-02
 不运行真实网络请求，也不以猜测填补上述证据。
 
-## 8. 本阶段明确不做
+## 8. 当前仍明确不做
 
-- 不实现 CN Profile Provider、Parser、Transport 或在线入口；
+- 不实现真实或在线 Transport，不导入 AkShare、pandas、requests 或其他在线客户端；
+- 不增加脱敏 Fixture，不声称真实响应结构或字段映射已经验证；
 - 不新增数据库 migration，不持久化 `SecurityProfile`；
 - 不修改旧 `CNDataSource` 或正式 DataSource 路由；
 - 不接入 Analyzer、Prompt、Report 或通知；
