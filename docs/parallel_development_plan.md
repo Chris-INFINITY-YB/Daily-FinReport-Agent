@@ -221,18 +221,28 @@ P2-01 完成时只包含固定版本第三方源码的静态证据核验和离�
   - 非法发布时间；
   - 空结果与部分坏记录；
   - 限流、网络、解析和不可用异常映射。
-- [ ] **P2-05 验证现有存储契约**
-  - `NewsRepository.insert_or_get_news()` 保持幂等；
-  - `news_security_links` 正确建立关联；
-  - Provider 失败不提交半成品事务；
-  - 不保存未经脱敏的 raw response。
+- [x] **P2-05 验证现有存储契约（2026-07-18 已完成）**
+  - synthetic Provider 结果通过现有 `SecurityRepository` 和 `NewsRepository` 写入 pytest
+    临时 SQLite；首次 5 条均插入，使用不同 `fetched_at` 和 URL 重放相同内容时第二次 5 条
+    均复用既有 ID，最终仍为 1 条证券、5 条新闻和 5 条关联；
+  - 当前 Eastmoney `external_id=None`，身份使用 `(source, content_hash)`；insert-or-get
+    保留第一次存储的 `fetched_at` 和 URL，不把第二次获取误作更新；
+  - `news_security_links` 只关联请求证券，重复链接幂等，默认
+    `relation_type="mentioned"`、`confidence=NULL`；
+  - Repository 往返返回标准 `NewsItem`，时间为 aware UTC；DataIssue 不写入新闻字段，
+    `raw_response_id=NULL` 且 `raw_responses` 始终为 0；
+  - Provider 在事务前失败时四张相关表均为空；同一事务内后续 Repository 外键失败时，
+    已插入的证券、新闻和关联全部回滚；
+  - 只新增离线集成测试和文档；没有修改 migration、Repository、Pipeline、正式配置、
+    默认路由或生产存储编排。
 
 验收：至少一个 News Provider 可以在纯离线条件下产生标准 `NewsItem`，重复输入不会重复
 入库，但仍不接入正式 Analyzer、Prompt、Report 或通知。
 
-阶段性说明（2026-07-18）：P2-02、P2-03 和 P2-04S 已完成；没有在线 Transport、在线
-请求或 observed Fixture。P2-04 总项与 P2-05 均未完成，当前实现没有接入正式 DataSource、
-Pipeline、Analyzer、Prompt、Report、通知、storage 或 Provider 编排。
+阶段性说明（2026-07-18）：P2-02、P2-03、P2-04S 和 P2-05 已完成；没有在线 Transport、
+在线请求或 observed Fixture。P2-04 总项仍未完成，因此 P2 阶段整体尚未完成，也不得开始
+P3。当前实现没有接入正式 DataSource、Pipeline、Analyzer、Prompt、Report、通知、生产
+storage 或 Provider 编排。
 
 ### P3：第二新闻来源与公告边界
 

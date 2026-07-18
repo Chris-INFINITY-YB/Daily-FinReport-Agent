@@ -1,12 +1,12 @@
 # CN 公司新闻 Provider 字段契约与证据边界
 
 更新时间：2026-07-18
-状态：P2-01～P2-03、P2-04S 已完成；P2-04 仍缺 observed Fixture，P2-05 尚未开始
+状态：P2-01～P2-03、P2-04S、P2-05 已完成；P2-04 仍缺 observed Fixture
 
 本文只选择首个 A 股个股公司新闻来源，并固定后续 News Provider 的身份、业务范围、
 字段、时间、结果和证据门禁，并记录纯离线实现状态。本文不改变现有
 [`CNDataSource`](../daily_report_agent/datasource/cn.py)，也不授权在线请求、生产接入或
-持久化。通用迁移边界见
+生产存储编排。通用迁移边界见
 [`provider_migration.md`](provider_migration.md)，实施顺序见
 [`parallel_development_plan.md`](parallel_development_plan.md)。
 
@@ -277,7 +277,7 @@ Provider 先让 Parser 解析所有行，再按以下顺序处理：
 
 ## 10. 离线实现状态与后续证据门禁
 
-P2-02、P2-03 和 P2-04S 已完成：
+P2-02、P2-03、P2-04S 和 P2-05 已完成：
 
 - [`news_transport.py`](../daily_report_agent/providers/eastmoney/news_transport.py) 只定义
   同步只读、显式注入的公开行 Protocol，没有默认或在线实现；
@@ -290,17 +290,47 @@ P2-02、P2-03 和 P2-04S 已完成：
 - 导入、构造、正常/空/部分坏记录、时间、哈希、窗口、排序、limit 和错误映射均有纯离线
   测试。
 
+### 10.1 P2-05 离线存储契约验证
+
+[`test_eastmoney_news_storage.py`](../tests/integration/storage/test_eastmoney_news_storage.py)
+只使用 synthetic Fixture 和 pytest 临时 SQLite 数据库，验证现有链路
+`EastmoneyNewsProvider -> ProviderResult[NewsItem] -> SecurityRepository ->
+NewsRepository`，没有新增生产存储编排：
+
+- 首次写入 5 条不同内容哈希的新闻时，`insert_or_get_news()` 均返回
+  `(Provider 生成的 NewsItem.id, True)`；数据库最终有 1 条证券、5 条新闻和 5 条证券
+  关联；
+- 当前 `external_id=None`，所以身份严格使用 `(source, content_hash)`。用不同 clock 和
+  不同 URL 重放相同文本时，第二次 5 条均返回既有 ID 和 `inserted=False`，新闻与关联
+  数量仍为 5；现有 insert-or-get 语义保留第一次存储的 `fetched_at` 和 URL，不执行更新；
+- 每条关联都指向请求证券 `cn/123456`，默认 `relation_type="mentioned"`、
+  `confidence=NULL`；重复建立同一关联不会增加行数；
+- `get_by_id()` 返回标准 `NewsItem`，关联代码为 `("123456",)`；`published_at` 和
+  `fetched_at` 均按现有 serializer 往返为 aware UTC。`DataIssue` 只留在
+  `ProviderResult.issues`，不会混入新闻字段；
+- `source="eastmoney"`、`source_type="news"`、`language="zh"` 保持不变；
+  `external_id`、`content`、`source_reliability` 和 `raw_response_id` 均为 `NULL`；测试从未
+  构造 `RawResponseRepository`，`raw_responses` 始终为 0；
+- Provider 超时发生在事务打开前时，证券、新闻、关联和 raw response 四张表均保持 0；
+  Provider 成功后若同一事务内的后续 Repository 外键操作失败，则此前的证券、新闻和合法
+  关联全部回滚，四张表也均为 0；
+- 测试同时核对既有两组新闻唯一索引、新闻主键、可空 `external_id/raw_response_id`、关联
+  复合主键和外键约束；没有修改 migration、Repository、Pipeline、正式配置或默认路由。
+
+以上只证明当前离线输入与现有存储契约可以安全组合，不证明在线 Transport、真实响应、
+observed Fixture 或生产存储编排可用，也不授权写入 `provider_calls` 或 `raw_responses`。
+
 P2-04 总项仍未完成，后续至少仍需：
 
 1. 用受控真实响应制作最小脱敏 observed Fixture，固定顶层结构、字段类型、空值、
    时间格式、标题高亮、摘要长度、URL 形态、article code 和空/坏记录行为；
 2. 验证函数说明与静态单页数量之间的实际行为，但不得用一次观察声明稳定 SLA；
-3. P2-05 另行验证 `NewsRepository.insert_or_get_news()` 的 `(source, content_hash)` 幂等行为、
-   `news_security_links` 和失败事务隔离；
-4. 任一在线观察必须另行明确授权，限制证券、次数、重试和保留内容，并记录为在线证据。
+3. 任一在线观察必须另行明确授权，限制证券、次数、重试和保留内容，并记录为在线证据。
 
 当前 `external_id=None`，所以“重复 external ID”用例不适用于本 Provider；不得为测试伪造
-external ID。当前重复身份只验证稳定内容哈希，Repository external ID 幂等性留给 P2-05。
+external ID。Eastmoney 的 P2-05 只验证稳定内容哈希身份；通用 Repository 对非空
+external ID 的幂等行为由独立 Repository 单元测试覆盖，不能据此宣称 Eastmoney 已暴露
+external ID。
 
 observed Fixture 必须手工脱敏，不保存 Cookie、Token、完整请求 URL、完整请求头、查询参数
 或未脱敏响应正文。当前只有 synthetic Fixture，没有 observed Fixture，也没有调用新闻
