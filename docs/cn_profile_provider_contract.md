@@ -1,7 +1,7 @@
 # CN Profile Provider 字段契约与证据边界
 
 更新时间：2026-07-18
-状态：P1-03 离线骨架已完成；无在线 Transport，尚无 CN Profile 脱敏 Fixture
+状态：P1-03 离线骨架已完成；P1-04 受控观察失败已记录，无在线 Transport，尚无 CN Profile 脱敏 Fixture
 
 本文只固定 CN Profile Provider 的身份、字段、结果和证据门禁。它不改变现有
 [`CNDataSource`](../daily_report_agent/datasource/cn.py)，也不授权网络请求、生产接入或
@@ -118,6 +118,36 @@ P1-03B 已建立严格离线、显式注入的代码骨架：
 Parser 对内联 Fake 行的支持只是接口骨架测试，不把 `name` 或 `industry` 从 E1 升级为
 E3。当前没有真实或脱敏响应 Fixture，也没有在线 Transport；不得据此声称 Eastmoney
 Profile 已在线可用或真实字段映射已经验证。
+
+### 3.5 2026-07-18 受控观察记录（P1-04R）
+
+本记录只固化一次已经结束的受控观察失败，不构成 P1-04 完成证据，也不授权继续请求。
+
+| 项目 | 安全记录 |
+|---|---|
+| 观察日期 | `2026-07-18` |
+| 调用库/版本 | AkShare `1.18.46` |
+| 函数与证券 | `stock_individual_info_em(symbol="600519")`；证券只用于静态公司资料结构验证 |
+| 调用边界 | 只读单次调用；调用次数 `1`，自动重试 `0`；没有循环、并发或替代证券请求 |
+| 结果 | 失败；安全错误类别为“响应不可用”，异常类型为 `JSONDecodeError` |
+| 数据保留 | 未查看、输出或保存原始响应；未保存状态码、Content-Type、完整 URL、Header、Cookie 或 Token |
+| Fixture | 未创建 observed Fixture，也未创建失败响应或伪造 Fixture |
+| 审计源码 | `akshare/stock/stock_info_em.py`，SHA-256 为 `3264436193901655cccf914560327ceb7fc7dbf919785984da6451ca5ea5d33f` |
+
+上述版本源码的目标函数先执行 HTTP 获取，再在本地调用 `r.json()` 反序列化响应；只有该
+步骤成功后，才会构造 DataFrame、映射字段标签并最终生成 `item/value` 两列。静态源码中
+唯一明确的 JSON 解析边界是 `r.json()`。因此本次 `JSONDecodeError` 发生在可供 Eastmoney
+Transport 或项目 Parser 消费的 `item/value` 行记录形成之前；项目 Parser 没有收到真实
+行记录，本次也没有观察到任何真实字段名、字段值、值类型、空值或证券身份字段。
+
+由于没有保留 traceback、HTTP 状态码、Content-Type 或响应正文，本记录不能确认失败的
+具体上游原因。HTTP 限流、WAF/反爬拦截、HTML 错误页、接口永久失效、字段协议变化和
+AkShare 缺陷都只能列为未验证候选原因，不能据此归因。`JSONDecodeError` 也不证明上述
+任一候选原因成立。
+
+本次失败不改变第 1 节证据等级：`name` 和 `industry` 仍为 E1，不能升级到 E3；
+`item/value` 结构、真实字段类型与缺失形态仍未验证。P1-04 保持未完成。任何后续尝试都
+必须作为新的受控观察单独审批、单独计数和单独记录，不能作为本次调用的重试或继续执行。
 
 ## 4. 字段证据表
 

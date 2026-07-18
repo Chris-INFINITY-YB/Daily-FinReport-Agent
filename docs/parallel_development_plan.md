@@ -141,6 +141,13 @@
     - 外部异常映射到现有安全 ProviderError，不泄露底层 URL 或凭据；
     - 如新增 Provider 子包，同步更新 `pyproject.toml` 的显式 package 列表。
 - [ ] **P1-04 增加离线 Fixture 和契约测试**
+  - [x] **P1-04R 固化 2026-07-18 受控观察失败记录（2026-07-18 已完成）**
+    - 单次 `stock_individual_info_em(symbol="600519")` 调用失败，调用次数 `1`、自动重试 `0`；
+    - 安全错误类别为“响应不可用”，异常类型为 `JSONDecodeError`；
+    - 静态源码确认失败位于本地 `r.json()` 解析边界，早于 `item/value` 行记录形成；
+    - 未保存原始响应或 HTTP 诊断内容，未创建 observed Fixture；
+    - 失败记录见 [`cn_profile_provider_contract.md`](cn_profile_provider_contract.md)；
+    - 本记录不完成 P1-04；任何后续尝试必须作为新的受控观察，不能冒充本次继续执行。
   - 正常资料；
   - 部分字段缺失；
   - 空响应；
