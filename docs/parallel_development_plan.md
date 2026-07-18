@@ -116,7 +116,7 @@
 
 ### P1：补全 ProfileProvider 契约
 
-- [ ] **P1-01 补齐 Protocol 测试**
+- [x] **P1-01 补齐 Protocol 测试（2026-07-18 已完成）**
   - 将 `ProfileProvider` 纳入 Protocol-only 测试；
   - 验证返回类型为 `ProviderResult[SecurityProfile]` 的约定；
   - 验证空结果与请求失败语义严格区分。
