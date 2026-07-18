@@ -1,0 +1,268 @@
+# B4 观测期间并行开发计划
+
+更新时间：2026-07-18
+适用范围：腾讯 QuoteProvider 阶段 2-B4 尚未验收期间的后续开发
+
+## 1. 结论与执行原则
+
+阶段 2-B4 不作为全部开发工作的阻塞项。项目可以在保持腾讯 Shadow 隔离的前提下，
+并行推进 Profile Provider、News Provider 的离线能力和工程保障。
+
+并行开发不等于腾讯 QuoteProvider 已完成验收。以下门禁在 B4 完成前保持不变：
+
+- `storage.enabled` 默认保持 `false`；
+- `providers.tencent_quote.shadow_enabled` 默认保持 `false`；
+- 腾讯数据不得进入 Analyzer、Prompt、Report 或通知；
+- 腾讯不得替换 AkShare，也不得被声明为正式或备用行情源；
+- 不基于单次在线成功直接设计或启用正式路由、自动重试、降级和熔断；
+- B4 继续使用同一个项目外持久观察库，每个确认的交易日最多执行一次。
+
+## 2. 开发前基线
+
+2026-07-18 已完成以下只读核对：
+
+| 项目 | 基线 |
+|---|---|
+| 当前分支 | `main`，与 `origin/main` 一致 |
+| 当前提交 | `c7b4a5ccc35c3d603274c112dfba2049a90e1fe2` |
+| 腾讯 Shadow 实现提交 | `98229c67e1a33f83260684b081c7097d92c76c03` |
+| 离线测试 | `282 passed` |
+| `git diff --check` | 通过 |
+| B4 ProviderCall | 0 |
+| B4 MarketSnapshot | 0 |
+| B4 PipelineRun | 0 |
+| B4 状态 | Day 0，尚未开始连续交易日观测 |
+
+回归保护值：
+
+```text
+完整数据 Prompt SHA-256:
+7d532b4031a223ec12e888b9e4fa236e313dfc08e20fe0f47c8aa87a49cd9cc3
+
+固定日期 dry-run SHA-256:
+8069e90b2cb81d5530849de7ccb0b85e1070d8506258c4e5628375dbf8b539f0
+```
+
+开始每个开发任务前，应先确认工作区没有覆盖他人修改。B4 的每日观测应始终使用已确认
+的冻结基线；若并行开发会修改 Shadow、存储 migration 或共享 Pipeline，应在独立工作树
+或独立分支中开发，不能用未验收代码执行 B4。
+
+## 3. 本轮允许开发的范围
+
+### 3.1 可以直接开始
+
+- 补全 ProfileProvider 契约测试；
+- 实现 CN Profile Provider 的离线 Parser、字段映射和错误映射；
+- 实现 News Provider 的离线 Parser、标准化、去重身份和错误映射；
+- 增加脱敏 Fixture、契约测试、失败隔离测试和导入不联网测试；
+- 完善 Provider 文档、CI、日志和开发验证命令；
+- 开发不接入正式分析链路的证据字段与 Repository 测试。
+
+### 3.2 可以设计和离线实现，但暂不启用
+
+- Provider 选择策略接口；
+- 缓存、限流、重试、熔断的抽象和纯离线状态测试；
+- Profile/News Provider 的显式在线冒烟入口；
+- 标准采集结果到未来分析输入的适配器。
+
+这类工作必须保持默认关闭，不得修改现有 DataSource 的正式路由。
+
+### 3.3 B4 验收前禁止
+
+- 将腾讯 QuoteProvider 接入正式行情选择或降级链路；
+- 用腾讯 `MarketSnapshot.pct_change` 代替 `PriceWindow.period_pct_change`；
+- 修改 Analyzer、Prompt 或 Report 以消费腾讯 Shadow 数据；
+- 自动打开 storage 或 Shadow 配置；
+- 因开发或测试覆盖、删除、迁移 B4 观察库；
+- 把一次或少量在线成功写成“腾讯已正式可用”。
+
+### 3.4 已确认的实现约束
+
+- `pyproject.toml` 当前显式列出 Python package；新增 Provider 子包时必须同步加入打包配置，
+  并补充安装后导入测试；
+- `SecurityProfile` 已有标准模型和 Protocol，但当前没有独立 Profile 存储表。B4 期间优先
+  完成内存返回和离线契约，不夹带共享数据库 migration；
+- `NewsItem`、`news_items`、`news_security_links` 和幂等 Repository 已具备，首个 News
+  Provider 应复用这些契约，不另建平行新闻模型；
+- 旧 `CNDataSource` 将行情、简介和新闻混在一次 `fetch()` 中，且共用一个 `error` 字段。
+  新 Provider 不得复制这一耦合方式；
+- 当前 Protocol-only 测试只覆盖 QuoteProvider 和 NewsProvider，ProfileProvider 是明确的
+  首个低风险测试缺口；
+- 腾讯 Shadow 与通用 storage、Pipeline 有共享面。涉及这些文件的重构应延后，或在独立
+  分支中完成且不得用于 B4 每日观测。
+
+## 4. 可执行任务清单
+
+建议严格按任务编号推进。每个任务独立提交，当前一项验收通过后再开始下一项。
+
+### P0：基线与隔离保护
+
+- [ ] **P0-01 建立开发分支或独立工作树**
+  - 从当前 `main` 基线开始；
+  - 记录分支起点提交；
+  - B4 观测继续使用冻结基线，不使用开发中的工作目录。
+- [x] **P0-02 执行开发前验证（2026-07-18 已完成）**
+  - 完整离线测试通过；
+  - `compileall` 通过；
+  - 固定日期 dry-run 通过；
+  - `git diff --check` 通过；
+  - 两个回归哈希不变。
+- [ ] **P0-03 建立变更边界检查**
+  - 每次提交检查默认配置未打开；
+  - 检查未修改腾讯正式准入状态；
+  - 检查 Fixture 不包含 Cookie、Token、完整请求 URL 或未脱敏原始响应。
+
+验收：开发环境与 B4 观测环境相互独立，失败测试不会写入观察库。
+
+### P1：补全 ProfileProvider 契约
+
+- [ ] **P1-01 补齐 Protocol 测试**
+  - 将 `ProfileProvider` 纳入 Protocol-only 测试；
+  - 验证返回类型为 `ProviderResult[SecurityProfile]` 的约定；
+  - 验证空结果与请求失败语义严格区分。
+- [ ] **P1-02 固化 Profile 字段语义**
+  - 为 `name`、`exchange`、`currency`、`industry`、`description` 建立字段证据表；
+  - 未独立确认的字段返回 `None`，不得通过字符串拼接猜测；
+  - `fetched_at` 必须为 timezone-aware；
+  - `source` 必须使用稳定 Provider ID。
+- [ ] **P1-03 实现 CN Profile Provider 离线骨架**
+  - 网络访问通过显式注入的 Transport/Client 隔离；
+  - 导入模块和构造 Provider 均不得联网；
+  - Parser 只消费传入 Fixture；
+  - 外部异常映射到现有安全 ProviderError，不泄露底层 URL 或凭据。
+  - 如新增 Provider 子包，同步更新 `pyproject.toml` 的显式 package 列表。
+- [ ] **P1-04 增加离线 Fixture 和契约测试**
+  - 正常资料；
+  - 部分字段缺失；
+  - 空响应；
+  - 字段名或结构异常；
+  - 上游异常与敏感错误文本脱敏；
+  - 市场不匹配和非法证券输入。
+- [ ] **P1-05 增加显式离线验收入口或最小示例**
+  - 默认不联网；
+  - 不读取正式配置；
+  - 不写数据库；
+  - 不进入 Analyzer、Report 和通知。
+
+验收：Profile Provider 可完全通过 Fixture 验证；旧 DataSource、腾讯 Shadow、Prompt 和
+报告输出无变化。
+
+### P2：实现第一个标准 News Provider 的离线能力
+
+- [ ] **P2-01 选择并记录首个公司新闻来源**
+  - 优先迁移当前旧链路已经使用的公司新闻能力；
+  - 明确它只负责公司新闻，不冒充公告或市场快讯；
+  - 固化 Provider ID、`source_type`、时间口径、URL 和 external ID 证据。
+- [ ] **P2-02 实现 News Transport 与 Parser 分离**
+  - Transport 只负责获取响应；
+  - Parser 只负责解析传入内容；
+  - Provider 负责证券、时间窗口、limit、标准错误和质量 Issue；
+  - 导入和构造阶段不得联网。
+- [ ] **P2-03 映射标准 NewsItem**
+  - `published_at`、`fetched_at` 必须带时区；
+  - 保留来源、原文 URL、external ID 和关联证券；
+  - 使用稳定内容哈希；
+  - 空摘要使用空字符串，未知正文使用 `None`；
+  - 不把网页正文或新闻内容当作程序指令。
+- [ ] **P2-04 增加离线 Fixture 和契约测试**
+  - 正常多条新闻；
+  - 重复 external ID；
+  - 无 external ID 时的内容哈希去重；
+  - 缺 URL、缺摘要、缺正文；
+  - 非法发布时间；
+  - 空结果与部分坏记录；
+  - 限流、网络、解析和不可用异常映射。
+- [ ] **P2-05 验证现有存储契约**
+  - `NewsRepository.insert_or_get_news()` 保持幂等；
+  - `news_security_links` 正确建立关联；
+  - Provider 失败不提交半成品事务；
+  - 不保存未经脱敏的 raw response。
+
+验收：至少一个 News Provider 可以在纯离线条件下产生标准 `NewsItem`，重复输入不会重复
+入库，但仍不接入正式 Analyzer、Prompt、Report 或通知。
+
+### P3：第二新闻来源与公告边界
+
+依赖：P2 完成。
+
+- [ ] **P3-01 接入第二个可切换的公司新闻来源（离线优先）**
+  - 使用独立 Provider ID 和独立 Fixture；
+  - 不复用第一个来源的字段假设；
+  - 验证单一来源失败不影响另一来源。
+- [ ] **P3-02 建立公告独立类型**
+  - 公告 Provider 与公司新闻 Provider 分开；
+  - `source_type` 明确区分公告、公司新闻和市场快讯；
+  - 保留公告原文 URL、发布时间和证券关联。
+- [ ] **P3-03 增加多源去重的纯函数层**
+  - 先支持 external ID 和精确内容哈希；
+  - 近似去重与事件聚类另立任务，不混入 Provider Parser；
+  - 保留各来源证据，不因去重丢失来源链。
+
+验收：两个公司新闻来源可以独立运行和切换；公告不会被混入普通新闻语义。
+
+### P4：工程保障
+
+P4 可与 P1～P3 穿插，但每项应单独提交。
+
+- [ ] **P4-01 CI 基线**
+  - 在受支持 Python 版本运行离线测试；
+  - 默认禁止网络；
+  - 执行 `compileall` 和 `git diff --check`；
+  - 不要求真实 API Key。
+- [ ] **P4-02 Provider 指标与安全日志设计**
+  - 只记录 Provider ID、operation、状态、耗时、数量和安全错误码；
+  - 不记录 Token、Cookie、完整 URL、真实响应正文；
+  - 日志失败不得改变正式 Pipeline 状态。
+- [ ] **P4-03 文档同步**
+  - 每完成一个 Provider，更新字段证据、限制和真实验证状态；
+  - 明确区分“离线实现完成”“单次在线验证”“连续观测验收”；
+  - README 只描述已发生且可复现的结果。
+
+验收：新贡献者无需外部服务即可安装、运行测试并理解 Provider 的安全边界。
+
+## 5. 每个任务的完成定义
+
+任务只有同时满足以下条件才可标记完成：
+
+1. 代码、类型和文档的语义一致；
+2. 正常、空结果、部分结果和失败路径均有离线测试；
+3. 导入、构造、pytest 和 dry-run 均不联网；
+4. 新增 Provider 有稳定 ID、能力、市场范围和字段证据；
+5. 错误信息不泄露凭据、完整 URL 或原始响应；
+6. 默认配置、正式 DataSource 路由和腾讯 Shadow 状态不变；
+7. 282 项既有测试加新增测试全部通过；
+8. `compileall`、dry-run、`git diff --check` 通过；
+9. Prompt 和固定日期 dry-run 回归哈希保持不变；
+10. 变更已按单一职责提交，能够独立回退。
+
+## 6. 建议实施顺序
+
+```text
+P0 基线隔离
+  → P1 ProfileProvider 离线实现
+  → P2 首个 News Provider 离线实现
+  → P3 第二新闻来源与公告边界
+  → Provider 编排、正式路由与分析接入（另行验收后）
+
+B4 腾讯连续观测与上述任务并行进行
+  → 满足 5～7 个交易日证据
+  → 单独验收
+  → 再决定腾讯 QuoteProvider 是否晋级
+```
+
+推荐先执行 P0 和 P1。它们与腾讯 Shadow 的共享面最小，能够最快验证并行开发流程是否
+稳定；P2 随后提供项目最关键的可追溯新闻证据能力。
+
+## 7. B4 结束后的合并门禁
+
+B4 完成后也不自动代表腾讯可以进入正式链路。合并或启用前仍需单独确认：
+
+- 5～7 个交易日记录完整；
+- 无 403/429、未解释的网络错误或协议漂移；
+- 无持续缺失证券或陈旧行情；
+- `raw_responses` 始终为 0；
+- 正式 Pipeline、报告和通知未受影响；
+- 并行开发没有改变观察期间的执行代码；
+- 在合并后的候选提交上重新执行完整离线回归和一次受控验证。
+
+只有上述验收通过后，才能另立任务设计腾讯的正式路由、降级策略及业务接入。

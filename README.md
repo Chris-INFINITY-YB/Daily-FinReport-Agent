@@ -294,6 +294,10 @@ LLM 或通知。使用 30 个日历日窗口可以覆盖可能跨周末的 5～7
 腾讯或任何单一网站。不同信息类型应由独立 Provider 承担，不能因为字段外观相似而混合
 金融语义。
 
+B4 观测期间可以安全并行推进的任务、实施顺序和完成定义，详见
+[`docs/parallel_development_plan.md`](docs/parallel_development_plan.md)。该计划不改变腾讯
+QuoteProvider 的验收门禁。
+
 后续路线包括：
 
 1. 完成腾讯 QuoteProvider 的 5～7 个交易日人工观测并单独验收；
