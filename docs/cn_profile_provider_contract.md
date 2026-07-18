@@ -1,7 +1,7 @@
 # CN Profile Provider 字段契约与证据边界
 
 更新时间：2026-07-18
-状态：P1-02 文档基线；尚未实现 Provider，尚无 CN Profile 脱敏 Fixture
+状态：P1-03A 来源归属门禁已通过；尚未实现 Provider，尚无 CN Profile 脱敏 Fixture
 
 本文只固定 CN Profile Provider 的身份、字段、结果和证据门禁。它不改变现有
 [`CNDataSource`](../daily_report_agent/datasource/cn.py)，也不授权网络请求、生产接入或
@@ -18,8 +18,8 @@
 | E3：脱敏 Fixture 证据 | P1-04 用受控真实响应制作并经测试固定的脱敏样本 | 可以，且仍须满足身份和缺失值规则 |
 
 当前没有 CN Profile Fixture，因此上游字段最高只有 E1。E1 不能升级为可信映射；P1-04
-必须用脱敏 Fixture 固定响应结构、字段名、值类型、缺失形态和原始来源归属后，字段才可
-进入 E3。
+必须用脱敏 Fixture 固定响应结构、字段名、值类型和缺失形态后，字段才可进入 E3。
+P1-03A 只确认原始来源归属，不提高任何响应字段的证据等级。
 
 ## 2. 旧 CNDataSource 的已知边界
 
@@ -52,17 +52,35 @@
 而 AkShare 只是当前调用所用库。`eastmoney` 符合现有小写 ASCII、数字、短横线和下划线
 规则，也不会把 Profile 能力编码进来源身份。
 
-### 3.2 启用门禁
+### 3.2 来源归属离线证据（P1-03A）
 
-当前仓库没有该接口的脱敏 Fixture，本验证环境也未安装 AkShare 包，无法从本地包源码
-独立确认 `_em` 的原始来源归属。因此 `eastmoney` 是已选择的稳定目标 ID，但在 P1-03
-写入真实 `ProviderDescriptor` 前必须先补足一项离线可审计的来源证据，例如：
+核验日期：2026-07-18
 
-- 带来源说明的脱敏 Fixture 元数据；或
-- 固定版本 AkShare 源码/文档中可审计的接口归属证据。
+本次只静态读取本机已安装包和项目源码，没有导入 AkShare、调用
+`stock_individual_info_em()` 或发送网络请求。为保证证据可移植，以下路径均相对于安装包
+根目录，不记录本机绝对路径。
 
-若证据与 Eastmoney 归属冲突，必须先更新本文并重新评审，不能在代码中换用临时 ID。
-门禁通过后的 Descriptor 固定为：
+| 证据项 | 静态结果 | 证据作用 |
+|---|---|---|
+| AkShare 安装元数据 | 版本 `1.18.46` | 固定被审计的包版本 |
+| Python 模块 | `akshare.stock.stock_info_em` | 表明目标函数位于专用 `stock_info_em` 模块 |
+| 源码相对路径 | `akshare/stock/stock_info_em.py` | 提供可复核的包内位置 |
+| 函数定义 | `stock_individual_info_em`，该版本第 13～69 行 | 与项目旧链路调用入口一致 |
+| 函数说明 | `东方财富-个股-股票信息` | 明确命名原始发布方，而非仅依赖 `_em` 后缀 |
+| 函数内上游主机名 | `push2.eastmoney.com` | 域名独立支持 Eastmoney 归属 |
+| 静态请求调用符号 | `requests.get` | 证明 AkShare 在客户端边界发起调用；未执行该调用 |
+| 包顶层导出 | `akshare.__init__` 从上述模块导出同名函数 | 连接项目所用公开入口与被审计实现 |
+| 源码文件 SHA-256 | `3264436193901655cccf914560327ceb7fc7dbf919785984da6451ca5ea5d33f` | 固定本次审计的源码内容 |
+| 项目本地调用 | `CNDataSource` 调用 `ak.stock_individual_info_em` | 连接安装包公开函数与当前旧链路 |
+
+证据等级结论：函数说明和 `eastmoney.com` 上游主机名构成两项相互独立的强静态证据；
+模块名、函数名和 `_em` 后缀只作为辅助证据，不单独承担归属判断。AkShare 是调用库，
+不是原始数据来源。
+
+### 3.3 门禁结论与限制
+
+P1-03A 来源归属门禁已通过。P1-03 可以安全使用稳定 Provider ID `eastmoney`，不再因来源
+身份阻塞，也不得改用表示客户端或能力的临时 ID。Descriptor 固定为：
 
 ```text
 provider_id: eastmoney
@@ -74,6 +92,11 @@ version: None
 
 任何返回的 `SecurityProfile.source` 必须等于 Descriptor 的 `provider_id`，不得填写
 `akshare` 或上游响应中的自由文本。
+
+本结论只适用于上述版本和 SHA-256 对应的源码。升级 AkShare 或源码哈希变化时必须重新
+核验模块说明和上游主机名。它不证明接口当前可用，也不证明真实响应结构、`item/value`
+列、`股票简称`、`行业`、缺失值、证券身份或任何字段映射；这些仍须由 P1-04 脱敏 Fixture
+和离线测试确认。P1-03A 也不代表 P1-03 Provider 骨架已经实现。
 
 ## 4. 字段证据表
 
@@ -89,7 +112,7 @@ version: None
 | `currency` | 当前无本地候选字段 | 不因市场为中国或价格通常以人民币计价而自动填 `CNY` | `None` | 无字段证据，暂不支持 | Fixture 和独立字段说明共同证明币种语义及值域 |
 | `industry` | `item/value` 中候选 `行业` | E3 后仅接受去除边界空白的非空字符串；不拼接概念、板块或其他分类 | 未验证、缺列、空值或类型不符均为 `None` | E1，旧代码曾读取；当前不可信 | 脱敏 Fixture 证明字段名、分类口径、值类型和缺失形态 |
 | `description` | 当前无独立文本字段；旧 `intro` 不可复用 | 不拼接名称、代码、行业、市值或行情；没有独立公司描述证据就不映射 | `None` | 无字段证据，暂不支持 | Fixture 提供独立描述字段，并证明它不是动态行情、营销文本或字段拼接 |
-| `source` | 固定 Provider Descriptor | 门禁通过后固定为 `eastmoney`；不读取响应自由文本，不使用库名 | 不能缺失；来源门禁未通过时不得构造 item | E0 规则已确认，来源归属待门禁 | 补足第 3.2 节来源证据并固定 Descriptor 测试 |
+| `source` | 固定 Provider Descriptor | 固定为 `eastmoney`；不读取响应自由文本，不使用库名 | 不能缺失 | E0 规则及 P1-03A 来源归属已确认 | P1-03 固定 Descriptor 测试；AkShare 版本或源码哈希变化时重新核验归属 |
 | `fetched_at` | 注入的 clock | 使用本次成功获取/解析时由调用方注入的 timezone-aware `datetime`；不得调用隐式本地时间 | clock 返回 naive 或非 datetime 时抛 `ProviderValidationError` | E0，模型已确认 | P1-04 增加固定时钟、naive 时间和非 datetime 测试 |
 
 ### 4.1 通用缺失值规则
@@ -108,7 +131,7 @@ version: None
 
 ## 5. 当前支持边界
 
-在 P1-04 Fixture 验证前，只有身份、来源目标和时间规则得到固定；没有任何上游资料字段
+在 P1-04 Fixture 验证前，只有身份、来源和时间规则得到固定；没有任何上游资料字段
 获准进入生产映射。Fixture 验证后，首批拟支持字段仅为 `name` 和 `industry`。
 `exchange`、`currency` 和 `description` 继续保持 `None`，直到各自取得独立证据。
 
@@ -148,7 +171,7 @@ P1-04 至少需要以下脱敏 Fixture 和测试，才能把 E1 字段升级为 
 4. 缺少 `item`/`value` 列、重复 item、未知 item 和非字符串值；
 5. 响应证券身份一致、身份缺失和身份冲突；
 6. 上游实际空值/哨兵形式，避免把 `NaN`、`None` 或展示占位符变成字符串；
-7. 来源归属元数据，证明原始发布方与 AkShare 客户端的边界；
+7. Fixture 元数据引用第 3.2 节归属证据，继续区分 Eastmoney 原始来源与 AkShare 客户端；
 8. 固定 aware clock、naive clock 和非法 clock；
 9. 网络、超时、限流、不可用和安全错误文本映射。
 

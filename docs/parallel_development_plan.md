@@ -128,11 +128,18 @@
   - `fetched_at` 必须为 timezone-aware；
   - `source` 必须使用稳定 Provider ID。
 - [ ] **P1-03 实现 CN Profile Provider 离线骨架**
-  - 网络访问通过显式注入的 Transport/Client 隔离；
-  - 导入模块和构造 Provider 均不得联网；
-  - Parser 只消费传入 Fixture；
-  - 外部异常映射到现有安全 ProviderError，不泄露底层 URL 或凭据。
-  - 如新增 Provider 子包，同步更新 `pyproject.toml` 的显式 package 列表。
+  - [x] **P1-03A 来源归属离线验证（2026-07-18 已完成）**
+    - 静态核验 AkShare `1.18.46` 的函数说明和 `eastmoney.com` 上游主机名；
+    - 确认 AkShare 是调用库，原始来源 Provider ID 使用 `eastmoney`；
+    - 只解除来源身份门禁，不代表响应结构、字段映射或 Provider 实现已验证；
+    - 证据与限制见
+      [`cn_profile_provider_contract.md`](cn_profile_provider_contract.md)。
+  - [ ] **P1-03B 实现离线骨架**
+    - 网络访问通过显式注入的 Transport/Client 隔离；
+    - 导入模块和构造 Provider 均不得联网；
+    - Parser 只消费传入 Fixture；
+    - 外部异常映射到现有安全 ProviderError，不泄露底层 URL 或凭据；
+    - 如新增 Provider 子包，同步更新 `pyproject.toml` 的显式 package 列表。
 - [ ] **P1-04 增加离线 Fixture 和契约测试**
   - 正常资料；
   - 部分字段缺失；
