@@ -120,7 +120,9 @@
   - 将 `ProfileProvider` 纳入 Protocol-only 测试；
   - 验证返回类型为 `ProviderResult[SecurityProfile]` 的约定；
   - 验证空结果与请求失败语义严格区分。
-- [ ] **P1-02 固化 Profile 字段语义**
+- [x] **P1-02 固化 Profile 字段语义（2026-07-18 已完成）**
+  - 字段契约、来源身份和证据门禁见
+    [`cn_profile_provider_contract.md`](cn_profile_provider_contract.md)；
   - 为 `name`、`exchange`、`currency`、`industry`、`description` 建立字段证据表；
   - 未独立确认的字段返回 `None`，不得通过字符串拼接猜测；
   - `fetched_at` 必须为 timezone-aware；
