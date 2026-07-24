@@ -4,7 +4,7 @@ import hashlib
 import importlib.util
 import sqlite3
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -22,7 +22,7 @@ from daily_report_agent.storage.repositories import (
 
 ROOT = Path(__file__).parents[2]
 SCRIPT = ROOT / "scripts" / "tencent_quote_shadow_summary.py"
-WHEN = datetime.now(timezone.utc)
+WHEN = datetime(2026, 7, 14, 7, 0, tzinfo=timezone.utc)
 
 
 def _module():
@@ -75,7 +75,13 @@ def test_summary_is_read_only_and_never_outputs_price(tmp_path: Path, capsys) ->
     _seed(database_path)
     before = hashlib.sha256(database_path.read_bytes()).hexdigest()
     module = _module()
-    assert module.main(["--database", str(database_path), "--days", "7"]) == 0
+    assert (
+        module.main(
+            ["--database", str(database_path), "--days", "7"],
+            clock=lambda: WHEN + timedelta(days=1),
+        )
+        == 0
+    )
     output = capsys.readouterr().out
     after = hashlib.sha256(database_path.read_bytes()).hexdigest()
     assert before == after
@@ -86,6 +92,12 @@ def test_summary_is_read_only_and_never_outputs_price(tmp_path: Path, capsys) ->
     assert "symbol_latest: 600519" in output
     assert "当前 schema 无法精确统计" in output
     assert "1234.56" not in output
+
+    assert module.main(["--database", str(database_path), "--days", "7"]) == 0
+    default_clock_output = capsys.readouterr().out
+    assert "window_end:" in default_clock_output
+    assert "1234.56" not in default_clock_output
+    assert hashlib.sha256(database_path.read_bytes()).hexdigest() == before
 
 
 def test_missing_database_returns_nonzero_without_creating_it(tmp_path: Path, capsys) -> None:
@@ -100,6 +112,20 @@ def test_days_validation_rejects_invalid_values(days: str) -> None:
     with pytest.raises(SystemExit) as caught:
         _module().main(["--database", "unused", "--days", days])
     assert caught.value.code == 2
+
+
+@pytest.mark.parametrize(
+    "clock",
+    [
+        lambda: datetime(2026, 7, 15, 7, 0),
+        lambda: "2026-07-15T07:00:00Z",
+    ],
+)
+def test_clock_rejects_naive_or_non_datetime_values(tmp_path: Path, capsys, clock) -> None:
+    database_path = tmp_path / "summary.sqlite"
+    _seed(database_path)
+    assert _module().main(["--database", str(database_path)], clock=clock) == 1
+    assert "could not be read safely" in capsys.readouterr().err
 
 
 def test_summary_script_has_no_network_config_llm_or_mutating_operations() -> None:

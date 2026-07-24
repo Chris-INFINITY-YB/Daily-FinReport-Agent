@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib.util
 import sqlite3
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -215,7 +215,13 @@ def test_fixture_success_calls_once_persists_expected_rows_and_is_summary_compat
 
     capsys.readouterr()
     summary_module = _load(SUMMARY_SCRIPT, "tencent_quote_shadow_summary_observe_test")
-    assert summary_module.main(["--database", str(database_path), "--days", "7"]) == 0
+    assert (
+        summary_module.main(
+            ["--database", str(database_path), "--days", "7"],
+            clock=lambda: WHEN + timedelta(days=1),
+        )
+        == 0
+    )
     output = capsys.readouterr().out
     assert "logical_calls: 1" in output
     assert "tencent_snapshot_rows: 2" in output

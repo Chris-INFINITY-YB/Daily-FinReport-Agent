@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+from collections.abc import Callable
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -29,6 +30,17 @@ def _parser() -> argparse.ArgumentParser:
 
 def _utc_text(value: datetime) -> str:
     return value.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _clock_value(clock: Callable[[], datetime]) -> datetime:
+    value = clock()
+    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError("clock must return a timezone-aware datetime")
+    return value.astimezone(timezone.utc)
 
 
 def _connect_read_only(path: Path) -> sqlite3.Connection:
@@ -109,14 +121,18 @@ def _summary(connection: sqlite3.Connection, *, days: int, now: datetime) -> lis
     return lines
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    *,
+    clock: Callable[[], datetime] = _utc_now,
+) -> int:
     args = _parser().parse_args(argv)
     try:
         with closing(_connect_read_only(Path(args.database))) as connection:
             lines = _summary(
                 connection,
                 days=args.days,
-                now=datetime.now(timezone.utc),
+                now=_clock_value(clock),
             )
     except FileNotFoundError:
         print("summary failed: database does not exist", file=sys.stderr)
