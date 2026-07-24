@@ -231,6 +231,20 @@ legacy 数据，不保存 raw response。只读历史汇总可运行：
 python scripts/tencent_quote_shadow_summary.py --database daily_report_agent/data/agent.db --days 7
 ```
 
-该工具以 SQLite URI 只读模式工作，不运行 migration、不联网、不输出价格。腾讯仍不是
-正式或备用行情源；是否晋级必须在后续阶段 2-B3-B 人工开启并连续观察 5～7 个交易日后
-另行验收。
+该工具以 SQLite URI 只读模式工作，不运行 migration、不联网、不输出价格。
+
+## 阶段 2-B4：五日 Shadow 观测验收
+
+2026-07-20 至 2026-07-24 已在冻结观测提交上完成五个连续交易日的受控 Shadow 观测。
+只读验收结果为 5 条 PipelineRun、5 条 ProviderCall、15 条 MarketSnapshot 和 0 条
+RawResponse；五次调用均为 `success`、`item_count=3`、`retry_count=0`。逐日耗时为
+1447、4083、4540、2003、1546 ms，平均 2723.80 ms，最大 4540 ms。
+
+五日证据通过 B4 数据质量验收，但只覆盖固定 3 个证券、每日一次、无并发、无自动重试的
+低频受控条件，不构成生产 SLA。腾讯仍是默认关闭的 Shadow Provider，不是正式或备用
+行情源，也未通过正式路由、降级、缓存、限流、重试或熔断验收。
+
+完整证据与限制见
+[`tencent_quote_b4_acceptance.md`](tencent_quote_b4_acceptance.md)。在任何正式路由或降级
+设计之前，仍需在合并候选提交上完成完整离线回归，并获得单独授权后对同一候选提交执行
+一次受控在线验证。
