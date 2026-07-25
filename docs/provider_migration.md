@@ -245,6 +245,8 @@ RawResponse；五次调用均为 `success`、`item_count=3`、`retry_count=0`。
 行情源，也未通过正式路由、降级、缓存、限流、重试或熔断验收。
 
 完整证据与限制见
-[`tencent_quote_b4_acceptance.md`](tencent_quote_b4_acceptance.md)。在任何正式路由或降级
-设计之前，仍需在合并候选提交上完成完整离线回归，并获得单独授权后对同一候选提交执行
-一次受控在线验证。
+[`tencent_quote_b4_acceptance.md`](tencent_quote_b4_acceptance.md)。候选
+`b921a8e8a541551e19af069666d9be3edba2fa3d` 已在 Python 3.10/3.13 完成完整离线回归，
+并于 2026-07-25 在单独授权后通过同候选单次受控在线验证。该结果只关闭 B4 合并候选
+门禁，不表示腾讯已成为正式或备用行情源；正式路由、降级、缓存、限流、重试和熔断仍须
+另立任务设计与验收。

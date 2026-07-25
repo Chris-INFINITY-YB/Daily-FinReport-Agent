@@ -1,11 +1,12 @@
 # daily_report_agent 开发进度
 
-更新时间：2026-07-24
-当前节点：阶段 2-B4 五个连续交易日观测已经完成且证据通过数据质量验收，正在等待合并
-候选门禁；腾讯仍是默认关闭的 Shadow Provider，未进入正式或备用行情路由。并行 P1 的
-Eastmoney CN Profile 离线骨架和验收入口已完成，并行 P2 的 Eastmoney CN News 离线
-Provider、synthetic 契约测试和存储幂等验证已完成。两者的真实脱敏 observed Fixture
-仍待补充，均未进入正式数据链路。
+更新时间：2026-07-25
+当前节点：阶段 2-B4 五日证据、合并候选完整离线回归及同候选受控在线验证均已通过；
+腾讯仍是默认关闭的 Shadow Provider，未进入正式或备用行情路由。并行 P1 的 Eastmoney
+CN Profile 离线骨架和验收入口已完成，但两次独立受控观察均在 `r.json()` 边界失败，
+没有形成 observed Fixture；并行 P2 的 Eastmoney CN News 离线 Provider、synthetic
+契约测试和存储幂等验证已完成，observed Fixture 仍待补充。P4-00 生成物治理和 P4-01
+离线 CI 基线已完成；当前暂停继续开发，等待上传 GitHub 并首次验证远程 CI。
 
 `daily_report_agent` 是一个面向多数据源、证据驱动分析的每日市场信息智能体。当前正式
 链路继续使用既有 DataSource；新的 Provider 能力采用契约化、离线测试和旁路观察逐步
@@ -47,9 +48,12 @@ Tencent QuoteProvider
 | 阶段 2-B3-B1：单次真实 Shadow 验证 | 已完成 | 临时数据库真实请求和幂等验证 |
 | 阶段 2-B3-B2：Shadow 专用观测入口 | 已完成 | 独立 CLI、安全联网门禁、独立 SQLite 和离线测试 |
 | 阶段 2-B3-B3：单次受控真实观测 | 已完成 | 固定 3 个证券完成一次真实请求和只读验收 |
-| 阶段 2-B4：连续人工观察 | 五日证据通过 | 2026-07-20 至 2026-07-24 完成五个交易日观测，等待合并候选门禁 |
+| 阶段 2-B4：连续人工观察 | 验收及候选门禁通过 | 五日证据、候选离线回归和 2026-07-25 同候选在线验证均通过 |
 | 并行 P1：Eastmoney CN Profile | 阶段性完成 | 离线契约、Provider 骨架和 synthetic 验收入口已完成；真实脱敏 Fixture 未完成 |
 | 并行 P2：Eastmoney CN News | 阶段性完成 | 离线 Transport/Parser/Provider、synthetic 契约测试和存储幂等验证已完成；observed Fixture 未完成 |
+| P4-00：生成物治理 | 已完成 | 删除历史跟踪 bytecode，测试后工作区不再被缓存污染 |
+| P4-01：离线 CI | 本地验收完成 | Python 3.10/3.13 工作流已建立，等待上传后首次远程运行 |
+| 当前开发状态 | 已暂停 | 等待上传 GitHub；暂停新的 Provider、路由和在线观察任务 |
 
 ### 当前基线
 
@@ -61,7 +65,7 @@ Tencent QuoteProvider
 282 passed
 
 当前开发分支测试：
-403 passed
+407 passed
 
 已验证 Python 环境：
 Python 3.10.20、Python 3.13.9
@@ -110,10 +114,21 @@ QuoteProvider 已通过正式验收，也不授权进入正式分析、报告、
 - 五个逐日 `audit_manifest.sha256` 均通过，正式数据库未创建，正式分析、报告、通知和
   路由未被观测入口触发。
 
-完整证据、限制和未解除门禁见
+完整证据、限制和候选门禁结果见
 [`docs/tencent_quote_b4_acceptance.md`](docs/tencent_quote_b4_acceptance.md)。B4 五日观测
-证据通过不等于腾讯获准进入正式路由；当前仍需在合并候选提交上完成完整回归，以及一次
-单独授权的受控在线验证。
+及候选门禁通过不等于腾讯获准进入正式路由；正式路由、降级、缓存、限流、重试和熔断
+仍须另立设计与验收任务。
+
+### 2026-07-25 合并候选门禁
+
+- 候选提交固定为 `b921a8e8a541551e19af069666d9be3edba2fa3d`；
+- Python 3.10.20 和 Python 3.13.9 完整离线测试均为 `403 passed`；
+- `compileall`、普通及固定日期 dry-run、安装后导入、默认配置和两个回归哈希均通过；
+- 同一候选只执行一次受控腾讯在线验证：逻辑调用 1、串行批次 1、底层请求 1、
+  `retry_count=0`，请求和返回均为 3，Issue 为 0；
+- 在线验证未出现 403、429、timeout、网络或 Parser 异常，候选副本、正式链路、B4 数据库
+  和审计资产均未改变；
+- 以上只关闭 B4 合并候选门禁，不自动授权腾讯成为正式或备用行情源。
 
 ## 已完成的基础能力
 
@@ -422,9 +437,9 @@ QuoteProvider 的验收门禁。
 
 后续路线包括：
 
-1. 在腾讯合并候选提交上完成完整离线回归和一次单独授权的受控在线验证；
+1. 上传当前本地提交并验证 Python 3.10/3.13 GitHub Actions 离线 CI；
 2. 为 Eastmoney Profile 补充真实响应制作的最小脱敏 Fixture 和离线契约证据，继续保持
-   证券静态资料与动态行情分离；
+   证券静态资料与动态行情分离；再次在线观察必须重新单独授权；
 3. 接入至少两个可切换的 A 股公司新闻来源；
 4. 将交易所或巨潮公告建模为独立公告来源；
 5. 接入财联社类市场快讯和其他市场资讯来源；
@@ -459,3 +474,10 @@ Eastmoney Profile 的 synthetic 离线验收以及 Eastmoney News 的 synthetic 
 - Prompt 和固定 dry-run 哈希保持不变；
 - 不修改现有金融判断和报告业务语义；
 - 每接入一个 Provider，都有独立契约测试、失败隔离测试和明确的在线门禁。
+
+## 当前暂停点
+
+截至 2026-07-25，当前本地分支测试为 `407 passed`，工作区无跟踪或未跟踪的 Python
+生成物。P4-00 与 P4-01 已完成本地验收，但 GitHub Actions 尚未远程运行。项目在此节点
+暂停继续开发，等待上传 GitHub；暂停期间不重试 Eastmoney Profile、不启动新的在线观察，
+也不设计或启用腾讯正式路由。

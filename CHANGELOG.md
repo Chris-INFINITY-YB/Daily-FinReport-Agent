@@ -65,10 +65,11 @@
 - 腾讯 Shadow 汇总 `main()` 支持注入 timezone-aware clock；CLI 默认仍使用当前 UTC，
   测试使用固定时间，从而消除固定 2026-07-14 Fixture 随系统日期移出 7 日窗口的问题。
   naive 或非 datetime clock 会被安全拒绝，7 日窗口和原有汇总兼容断言保持不变。
-- B4 状态更新为五个连续交易日观测完成、证据通过数据质量验收并等待合并候选门禁；这不
-  表示腾讯已成为正式或备用行情源。
+- B4 状态更新为五个连续交易日观测、合并候选完整离线回归及同候选单次受控在线验证均
+  通过；这不表示腾讯已成为正式或备用行情源。
 - 删除历史误提交的 Python bytecode，并忽略 `__pycache__`、`*.py[cod]` 及常见测试/
   分析缓存，双版本测试不再污染 Git 工作区。
+- 当前开发进度暂停，等待上传 GitHub 和首次远程运行 Python 3.10/3.13 离线 CI。
 
 ### Security
 
@@ -92,7 +93,9 @@
 
 ### Validation
 
-- 完整离线测试：`403 passed`；本轮 B4 收尾使用 Python `3.10.20`。
+- 当前完整离线测试：Python 3.10.20 和 Python 3.13.9 均为 `407 passed`。
+- P4-00 完成后版本控制及项目工作区中的 Python 生成物均为 0；P4-01 本地等价 CI 门禁
+  通过，GitHub Actions 尚待上传后的首次远程运行。
 - Eastmoney Profile 相关测试：`41 passed`；其中离线验收入口测试：`12 passed`。
 - Eastmoney News Provider、Parser、契约、存储及相关 Repository/事务测试：`83 passed`。
 - `compileall`、固定日期 dry-run、README 中的 synthetic 离线命令和 `git diff --check`
@@ -100,6 +103,10 @@
 - B4 只读验收：5 个 `audit_manifest.sha256` 全部通过；数据库为 5 条 PipelineRun、
   5 条 ProviderCall、15 条 MarketSnapshot、0 条 RawResponse，三只固定证券各 5 条，
   无字段空值、非 CNY、重复业务键、孤立快照、缺失证券或错误信号。
+- B4 合并候选 `b921a8e8a541551e19af069666d9be3edba2fa3d` 在 Python 3.10.20 和
+  Python 3.13.9 的完整离线测试均为 `403 passed`；2026-07-25 同候选单次受控在线验证
+  为一次逻辑调用、一次底层请求、请求/返回 3/3、`retry_count=0`、Issue 0，未出现
+  403、429、timeout、网络或 Parser 异常。
 - Prompt SHA-256 保持
   `7d532b4031a223ec12e888b9e4fa236e313dfc08e20fe0f47c8aa87a49cd9cc3`。
 - 固定日期 dry-run SHA-256 保持
@@ -112,6 +119,9 @@
 - 2026-07-18 的一次受控资料请求在本地 `r.json()` 解析边界失败；调用次数为 `1`、自动
   重试为 `0`，未保存原始响应，也未创建 observed Fixture。该结果不能证明限流、拦截、
   接口失效、字段变化或客户端缺陷。
+- 2026-07-25 的第二次独立受控资料观察在相同 `r.json()` 边界失败；逻辑调用和底层请求
+  均为 `1`、自动重试和并发均为 `0`，未保存原始响应或完整 DataFrame，也未创建
+  observed Fixture。它不是 2026-07-18 调用的重试，未来观察仍须重新单独授权。
 - synthetic Fixture 只验证离线调用链，不证明真实 `item/value` 响应结构或线上可用性。
 - Eastmoney Profile Provider 不能被声明为在线可用，也不能进入正式 DataSource 路由。
 - P2-04 仍未完成：Eastmoney News 当前只有 N2 静态证据和 synthetic Fixture，没有最小
@@ -119,6 +129,6 @@
   在线可用性均未确认。
 - Eastmoney News 当前只完成纯离线 Provider 和存储契约验证，不能被声明为在线可用，也
   不能进入正式 DataSource、Pipeline、Analyzer、Prompt、Report 或通知。
-- 腾讯 QuoteProvider 的 B4 五日观测证据已经通过，但仍未获准进入正式或备用行情路由、
-  分析、报告或通知。正式路由或降级设计前，仍需在合并候选提交上完成完整回归和一次
-  单独授权的受控在线验证。
+- 腾讯 QuoteProvider 的 B4 五日证据和合并候选门禁已经通过，但仍未获准进入正式或备用
+  行情路由、分析、报告或通知。正式路由、降级、缓存、限流、重试和熔断仍须另立任务
+  设计与验收。
