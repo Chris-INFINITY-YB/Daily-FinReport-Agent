@@ -49,6 +49,8 @@
 - 新增腾讯 QuoteProvider
   [`B4 五日观测验收记录`](docs/tencent_quote_b4_acceptance.md)，只读固化 2026-07-20 至
   2026-07-24 的逐日结果、数据质量检查、审计清单、延迟统计、证据限制和未解除门禁。
+- 新增 Python 3.10/3.13 离线 CI 基线，执行完整 pytest、`compileall`、
+  `git diff --check` 和测试后工作区清洁检查；CI 不安装 online extra 或注入 API Key。
 
 ### Changed
 
@@ -65,6 +67,8 @@
   naive 或非 datetime clock 会被安全拒绝，7 日窗口和原有汇总兼容断言保持不变。
 - B4 状态更新为五个连续交易日观测完成、证据通过数据质量验收并等待合并候选门禁；这不
   表示腾讯已成为正式或备用行情源。
+- 删除历史误提交的 Python bytecode，并忽略 `__pycache__`、`*.py[cod]` 及常见测试/
+  分析缓存，双版本测试不再污染 Git 工作区。
 
 ### Security
 

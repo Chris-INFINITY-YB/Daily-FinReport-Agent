@@ -281,11 +281,16 @@ storage 或 Provider 编排。
 
 P4 可与 P1～P3 穿插，但每项应单独提交。
 
-- [ ] **P4-01 CI 基线**
-  - 在受支持 Python 版本运行离线测试；
-  - 默认禁止网络；
-  - 执行 `compileall` 和 `git diff --check`；
-  - 不要求真实 API Key。
+- [x] **P4-00 仓库生成物治理（2026-07-25 已完成）**
+  - 删除历史误提交的 Python bytecode，版本控制中不再包含 `.pyc`；
+  - `.gitignore` 统一忽略 `__pycache__`、`*.py[cod]` 和常见测试/分析缓存；
+  - Python 3.10/3.13 完整测试后生成的缓存不再污染 Git 工作区。
+- [x] **P4-01 CI 基线（2026-07-25 已完成）**
+  - `.github/workflows/offline-ci.yml` 在 Python 3.10 和 3.13 运行完整离线测试；
+  - 普通 pytest 继续由全局 autouse Fixture 禁止 socket 和 urllib 网络访问；
+  - 执行 `compileall`、`git diff --check` 和测试后工作区检查，bytecode 输出重定向到
+    runner 临时目录；
+  - 仅安装 `.[test]`，不安装 online extra，不要求或注入真实 API Key。
 - [ ] **P4-02 Provider 指标与安全日志设计**
   - 只记录 Provider ID、operation、状态、耗时、数量和安全错误码；
   - 不记录 Token、Cookie、完整 URL、真实响应正文；

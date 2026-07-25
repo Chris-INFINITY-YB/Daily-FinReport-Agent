@@ -122,7 +122,9 @@ QuoteProvider 已通过正式验收，也不授权进入正式分析、报告、
 - 项目可安装为正式 Python 包并支持 `python -m daily_report_agent`；
 - dry-run 无需 API Key，不调用真实 LLM、网络数据源或通知；
 - Python 3.10 和 Python 3.13 均纳入验证；
-- pytest 默认禁止网络访问，Provider 在线验证使用独立、显式入口。
+- pytest 默认禁止网络访问，Provider 在线验证使用独立、显式入口；
+- `.github/workflows/offline-ci.yml` 在 Python 3.10/3.13 执行 pytest、`compileall`、
+  `git diff --check` 和工作区清洁检查，不安装 online extra 或注入 API Key。
 
 ### 标准数据与分析兼容
 
