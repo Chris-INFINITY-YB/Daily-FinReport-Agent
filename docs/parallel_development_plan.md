@@ -153,6 +153,17 @@
     - 未保存原始响应或 HTTP 诊断内容，未创建 observed Fixture；
     - 失败记录见 [`cn_profile_provider_contract.md`](cn_profile_provider_contract.md)；
     - 本记录不完成 P1-04；任何后续尝试必须作为新的受控观察，不能冒充本次继续执行。
+  - [x] **P1-04R2 固化 2026-07-25 独立受控观察失败记录（2026-07-25 已完成）**
+    - 联网前重新核对 AkShare `1.18.46`、目标源码 SHA-256 和单请求、无重试/分页边界；
+    - 项目外一次性脚本先通过 synthetic 脱敏自检，再固定调用
+      `stock_individual_info_em(symbol="600519", timeout=10.0)`；
+    - 逻辑调用 `1`、底层请求 `1`、自动重试 `0`、并发 `0`，安全错误类别为
+      `json_decode`，异常类型为 `JSONDecodeError`；
+    - 未保存原始响应、完整 DataFrame、URL、请求参数或底层异常正文，未创建 observed
+      Fixture；
+    - 本次是单独授权的新观察，不是 P1-04R 的重试；失败记录见
+      [`cn_profile_provider_contract.md`](cn_profile_provider_contract.md)；
+    - `name` 和 `industry` 仍为 E1，P1-04 继续未完成，未来观察仍须单独授权。
   - 正常资料；
   - 部分字段缺失；
   - 空响应；
@@ -169,7 +180,8 @@
 
 阶段性说明（2026-07-18）：P1 的离线 Provider 骨架、Protocol/字段契约和显式离线验收
 入口已经完成，但 P1 整体尚未完成。P1-04 仍等待由真实响应制作的最小脱敏 Fixture；
-2026-07-18 的一次受控请求在本地 `r.json()` 解析边界失败，没有形成 `item/value` 行记录。
+2026-07-18 和 2026-07-25 两次各自授权、各自计数的受控请求均在本地 `r.json()` 解析
+边界失败，没有形成 `item/value` 行记录。
 该证据缺口不阻塞 P2 的纯离线开发，但 Eastmoney Profile 仍不得被声明为在线可用，也
 不得进入正式 DataSource 路由。
 
