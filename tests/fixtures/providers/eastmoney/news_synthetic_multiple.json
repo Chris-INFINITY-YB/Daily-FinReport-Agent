@@ -1,0 +1,40 @@
+[
+  {
+    "关键词": "123456",
+    "新闻标题": "(<em>ＳＹＮＴＨＥＴＩＣ</em>) ALPHA",
+    "新闻内容": "SYNTHETIC  SUMMARY\r\nALPHA",
+    "发布时间": "2026-07-18 09:30:00",
+    "文章来源": "SYNTHETIC_MEDIA",
+    "新闻链接": "https://example.invalid/news/alpha"
+  },
+  {
+    "关键词": "654321",
+    "新闻标题": "SYNTHETIC BETA",
+    "发布时间": "2026-07-18T09:30:00",
+    "文章来源": "SYNTHETIC_MEDIA"
+  },
+  {
+    "关键词": "123456",
+    "新闻标题": "SYNTHETIC DATE ONLY",
+    "新闻内容": "SYNTHETIC DATE PRECISION",
+    "发布时间": "2026-07-18",
+    "文章来源": "SYNTHETIC_MEDIA",
+    "新闻链接": "https://example.invalid/news/date-only"
+  },
+  {
+    "关键词": "123456",
+    "新闻标题": "SYNTHETIC OUTSIDE WINDOW",
+    "新闻内容": "SYNTHETIC OLD ITEM",
+    "发布时间": "2026-07-10 12:00:00",
+    "文章来源": "SYNTHETIC_MEDIA",
+    "新闻链接": "https://example.invalid/news/outside"
+  },
+  {
+    "关键词": "123456",
+    "新闻标题": "SYNTHETIC SAME TIME",
+    "新闻内容": "SYNTHETIC STABLE ORDER",
+    "发布时间": "2026-07-18 09:30:00",
+    "文章来源": "SYNTHETIC_MEDIA",
+    "新闻链接": "https://example.invalid/news/same-time"
+  }
+]

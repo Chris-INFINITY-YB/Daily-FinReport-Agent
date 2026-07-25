@@ -1,2 +1,18 @@
 a-stock-data/
+
+# Python bytecode and interpreter caches
+**/__pycache__/
+*.py[cod]
+
+# Test and analysis caches
 .pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Python package build outputs
+build/
+dist/
+*.egg-info/
