@@ -66,13 +66,33 @@ def test_offline_ci_redirects_bytecode_outside_the_repository() -> None:
     assert isinstance(jobs, dict)
     offline = jobs["offline"]
     assert isinstance(offline, dict)
-    environment = offline["env"]
-    assert isinstance(environment, dict)
+    job_environment = offline["env"]
+    assert isinstance(job_environment, dict)
 
-    assert environment["PYTHONDONTWRITEBYTECODE"] == "1"
-    assert str(environment["PYTHONPYCACHEPREFIX"]).startswith(
-        "${{ runner.temp }}/"
+    assert job_environment["PYTHONDONTWRITEBYTECODE"] == "1"
+    assert "PYTHONPYCACHEPREFIX" not in job_environment
+    assert all(
+        "runner." not in str(value) for value in job_environment.values()
     )
+
+    steps = offline["steps"]
+    assert isinstance(steps, list)
+    compile_step = next(
+        step
+        for step in steps
+        if isinstance(step, dict)
+        and step.get("run")
+        == "python -m compileall -q daily_report_agent scripts tests"
+    )
+    compile_environment = compile_step["env"]
+    assert isinstance(compile_environment, dict)
+    pycache_prefix = str(compile_environment["PYTHONPYCACHEPREFIX"])
+    assert pycache_prefix == (
+        "${{ runner.temp }}/daily-report-agent-pycache-"
+        "${{ matrix.python-version }}"
+    )
+    assert pycache_prefix.startswith("${{ runner.temp }}/")
+    assert "${{ matrix.python-version }}" in pycache_prefix
 
 
 def test_pytest_default_gate_blocks_socket_and_urllib() -> None:
