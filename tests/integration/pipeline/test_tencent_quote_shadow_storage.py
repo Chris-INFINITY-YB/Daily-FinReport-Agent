@@ -10,6 +10,7 @@ from daily_report_agent.models.security import Security
 from daily_report_agent.pipeline.context import RunContext
 from daily_report_agent.pipeline.tencent_quote_shadow import (
     SQLiteTencentQuoteShadowStore,
+    build_request_fingerprint,
     run_tencent_quote_shadow,
 )
 from daily_report_agent.providers.contracts import ProviderResult
@@ -175,3 +176,60 @@ def test_single_snapshot_transaction_failure_rolls_back_only_that_item(
     assert result.issue_count == 1
     assert symbols == ["000001"]
     assert call_status == "success"
+
+
+def test_metric_output_failure_preserves_provider_call_fingerprint_and_pipeline(
+    storage_db: Database,
+) -> None:
+    context = _context(storage_db)
+    securities = (Security("cn", "600519", "贵州茅台"),)
+    snapshot = MarketSnapshot(
+        symbol="600519",
+        observed_at=WHEN,
+        source="tencent-finance",
+        price=10.0,
+    )
+    provider = Provider(
+        ProviderResult(provider=TENCENT_QUOTE_DESCRIPTOR, items=(snapshot,))
+    )
+
+    def fail_metric(event) -> None:
+        raise RuntimeError(
+            "https://provider.invalid response body token=secret symbol=600519"
+        )
+
+    result = run_tencent_quote_shadow(
+        securities=securities,
+        run_context=context,
+        settings=TencentQuoteShadowSettings(True, 5, 20, 20),
+        store=SQLiteTencentQuoteShadowStore(context),
+        provider_factory=lambda settings: provider,
+        clock=lambda: WHEN,
+        monotonic=lambda: 10.0,
+        metric_emitter=fail_metric,
+    )
+
+    with closing(storage_db.connect()) as connection:
+        call = connection.execute(
+            """
+            SELECT status, item_count, retry_count, request_fingerprint
+            FROM provider_calls
+            """
+        ).fetchone()
+        run_status = connection.execute(
+            "SELECT status FROM pipeline_runs WHERE run_id = 'shadow-run'"
+        ).fetchone()[0]
+        snapshot_count = connection.execute(
+            "SELECT COUNT(*) FROM market_snapshots"
+        ).fetchone()[0]
+
+    assert result.status == "success"
+    assert provider.calls == 1
+    assert tuple(call) == (
+        "success",
+        1,
+        0,
+        build_request_fingerprint(securities),
+    )
+    assert run_status == "running"
+    assert snapshot_count == 1

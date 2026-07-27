@@ -17,6 +17,13 @@ from daily_report_agent.models.issues import IssueSeverity
 from daily_report_agent.models.market import MarketSnapshot
 from daily_report_agent.models.news import is_timezone_aware
 from daily_report_agent.models.security import Security
+from daily_report_agent.providers.telemetry import (
+    ProviderMetricEmitter,
+    ProviderMetricEvent,
+    ProviderMetricStatus,
+    emit_provider_metric_safely,
+    log_provider_metric,
+)
 from .context import RunContext
 
 if TYPE_CHECKING:
@@ -259,6 +266,30 @@ def _duration_ms(started: float, monotonic: Callable[[], float]) -> int:
     return max(0, int((monotonic() - started) * 1000))
 
 
+def _emit_metric(
+    *,
+    status: ProviderMetricStatus,
+    duration_ms: int,
+    item_count: int = 0,
+    issue_count: int = 0,
+    error_code: str | None = None,
+    emitter: ProviderMetricEmitter,
+) -> None:
+    emit_provider_metric_safely(
+        ProviderMetricEvent(
+            provider_id=TENCENT_PROVIDER_ID,
+            operation=TENCENT_SHADOW_OPERATION,
+            status=status,
+            duration_ms=duration_ms,
+            item_count=item_count,
+            issue_count=issue_count,
+            retry_count=0,
+            error_code=error_code,
+        ),
+        emitter,
+    )
+
+
 def _finish_safely(
     store: TencentQuoteShadowStore,
     call_id: int,
@@ -303,6 +334,7 @@ def run_tencent_quote_shadow(
     ] = _default_provider_factory,
     clock: Callable[[], datetime] = _utc_now,
     monotonic: Callable[[], float] = time.monotonic,
+    metric_emitter: ProviderMetricEmitter = log_provider_metric,
 ) -> TencentQuoteShadowResult:
     """执行一次可追踪的逻辑 Provider 调用；所有失败均与正式日报隔离。"""
     requested_count = len(securities)
@@ -316,6 +348,12 @@ def run_tencent_quote_shadow(
         )
     except Exception:
         _warn("ProviderCall 无法建立，本次未执行腾讯网络请求。")
+        _emit_metric(
+            status=ProviderMetricStatus.SKIPPED,
+            duration_ms=_duration_ms(started_tick, monotonic),
+            error_code="provider_call_start_failed",
+            emitter=metric_emitter,
+        )
         return TencentQuoteShadowResult(
             False, "skipped", requested_count, 0, 0, 0, None, None,
             "provider_call_start_failed",
@@ -349,10 +387,18 @@ def run_tencent_quote_shadow(
             "腾讯行情 Shadow 失败："
             f"category={issue.category.value} code={issue.code or 'none'}"
         )
-        return TencentQuoteShadowResult(
+        result = TencentQuoteShadowResult(
             True, "failed", requested_count, 0, 0, 1, call_id, duration,
             "provider_failed",
         )
+        _emit_metric(
+            status=ProviderMetricStatus.FAILED,
+            duration_ms=duration,
+            issue_count=1,
+            error_code=error.code or "provider_error",
+            emitter=metric_emitter,
+        )
+        return result
     except Exception:
         duration, _ = _finish_safely(
             store,
@@ -368,10 +414,18 @@ def run_tencent_quote_shadow(
             error_message="Tencent quote shadow failed unexpectedly",
         )
         _warn("Provider 出现未分类失败，正式日报将继续。")
-        return TencentQuoteShadowResult(
+        result = TencentQuoteShadowResult(
             True, "failed", requested_count, 0, 0, 1, call_id, duration,
             "provider_failed",
         )
+        _emit_metric(
+            status=ProviderMetricStatus.FAILED,
+            duration_ms=duration,
+            issue_count=1,
+            error_code="unexpected_error",
+            emitter=metric_emitter,
+        )
+        return result
 
     received_count = len(provider_result.items)
     issue_count = len(provider_result.issues)
@@ -437,6 +491,13 @@ def run_tencent_quote_shadow(
         f"created={result.created_snapshot_count} issues={result.issue_count} "
         f"status={result.status} duration_ms={result.duration_ms}"
     )
+    _emit_metric(
+        status=ProviderMetricStatus(result.status),
+        duration_ms=duration,
+        item_count=received_count,
+        issue_count=issue_count,
+        emitter=metric_emitter,
+    )
     return result
 
 
@@ -452,12 +513,19 @@ def maybe_run_tencent_quote_shadow(
     store_factory: Callable[[RunContext], TencentQuoteShadowStore] = SQLiteTencentQuoteShadowStore,
     clock: Callable[[], datetime] = _utc_now,
     monotonic: Callable[[], float] = time.monotonic,
+    metric_emitter: ProviderMetricEmitter = log_provider_metric,
 ) -> TencentQuoteShadowResult:
     settings = parse_tencent_quote_shadow_settings(config)
     if dry_run or not settings.enabled:
         return TencentQuoteShadowResult(False, "disabled", 0, 0, 0, 0, None, None)
     if not run_context.storage_active:
         _warn("腾讯行情 Shadow 已启用，但存储未启用，本次已跳过旁路观测。")
+        _emit_metric(
+            status=ProviderMetricStatus.SKIPPED,
+            duration_ms=0,
+            error_code="storage_inactive",
+            emitter=metric_emitter,
+        )
         return TencentQuoteShadowResult(
             False, "skipped", 0, 0, 0, 0, None, None, "storage_inactive"
         )
@@ -466,11 +534,22 @@ def maybe_run_tencent_quote_shadow(
         max_symbols=settings.max_symbols,
     )
     if not securities:
+        _emit_metric(
+            status=ProviderMetricStatus.SKIPPED,
+            duration_ms=0,
+            emitter=metric_emitter,
+        )
         return TencentQuoteShadowResult(False, "skipped", 0, 0, 0, 0, None, None)
     try:
         store = store_factory(run_context)
     except Exception:
         _warn("Shadow 存储适配器初始化失败，本次未执行腾讯网络请求。")
+        _emit_metric(
+            status=ProviderMetricStatus.SKIPPED,
+            duration_ms=0,
+            error_code="store_initialization_failed",
+            emitter=metric_emitter,
+        )
         return TencentQuoteShadowResult(
             False, "skipped", len(securities), 0, 0, 0, None, None,
             "store_initialization_failed",
@@ -483,4 +562,5 @@ def maybe_run_tencent_quote_shadow(
         provider_factory=provider_factory,
         clock=clock,
         monotonic=monotonic,
+        metric_emitter=metric_emitter,
     )

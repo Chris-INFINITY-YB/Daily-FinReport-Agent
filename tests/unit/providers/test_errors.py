@@ -118,3 +118,22 @@ def test_underlying_exception_is_only_available_through_cause() -> None:
     assert "private-token" not in captured.safe_message
     assert "private-token" not in issue.message
     assert issue.details is None
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        "https://provider.invalid?q=secret",
+        "api_key=secret",
+        "response.body",
+        "a" * 65,
+    ],
+)
+def test_error_code_rejects_free_text_and_sensitive_shapes(code: str) -> None:
+    with pytest.raises(ValueError, match="error_code"):
+        ProviderError(
+            provider_id="test-provider",
+            operation="fetch",
+            safe_message="Safe failure",
+            code=code,
+        )

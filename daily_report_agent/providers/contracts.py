@@ -11,6 +11,8 @@ from daily_report_agent.models.issues import DataIssue
 
 
 _PROVIDER_ID_PATTERN = re.compile(r"^[a-z0-9_-]+$")
+_OPERATION_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
+_ERROR_CODE_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
 _ALLOWED_MARKETS = frozenset({"cn", "us"})
 
 
@@ -25,6 +27,28 @@ def normalize_provider_id(value: str) -> str:
         raise ValueError(
             "provider_id 只能包含小写 ASCII 字母、数字、短横线和下划线"
         )
+    return normalized
+
+
+def normalize_provider_operation(value: str) -> str:
+    """校验并返回适合指标、日志和持久化的 Provider 操作标识。"""
+    if not isinstance(value, str):
+        raise TypeError("operation 必须是字符串")
+    normalized = value.strip()
+    if _OPERATION_PATTERN.fullmatch(normalized) is None:
+        raise ValueError("operation 必须是长度不超过 64 的安全小写短标识")
+    return normalized
+
+
+def normalize_provider_error_code(value: str | None) -> str | None:
+    """校验不会携带自由文本或请求数据的 Provider 错误码。"""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TypeError("error_code 必须是字符串或 None")
+    normalized = value.strip()
+    if _ERROR_CODE_PATTERN.fullmatch(normalized) is None:
+        raise ValueError("error_code 必须是长度不超过 64 的安全小写短标识或 None")
     return normalized
 
 

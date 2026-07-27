@@ -18,6 +18,10 @@ from daily_report_agent.pipeline.tencent_quote_shadow import (
 from daily_report_agent.pipeline import tencent_quote_shadow as shadow_module
 from daily_report_agent.providers.contracts import ProviderResult
 from daily_report_agent.providers.errors import ProviderNetworkError
+from daily_report_agent.providers.telemetry import (
+    ProviderMetricEvent,
+    ProviderMetricStatus,
+)
 from daily_report_agent.providers.tencent.constants import TENCENT_QUOTE_DESCRIPTOR
 
 
@@ -363,3 +367,182 @@ def test_default_factory_passes_configured_timeout_and_batch_without_network(
     assert isinstance(captured["transport"], SequentialTencentQuoteTransport)
     assert captured["timeout_seconds"] == 5.0
     assert captured["batch_size"] == 20
+
+
+@pytest.mark.parametrize(
+    ("outcome", "status", "item_count", "issue_count", "error_code"),
+    [
+        (
+            ProviderResult(
+                provider=TENCENT_QUOTE_DESCRIPTOR,
+                items=(_snapshot("600519"),),
+            ),
+            ProviderMetricStatus.SUCCESS,
+            1,
+            0,
+            None,
+        ),
+        (
+            ProviderResult(provider=TENCENT_QUOTE_DESCRIPTOR),
+            ProviderMetricStatus.EMPTY,
+            0,
+            0,
+            None,
+        ),
+        (
+            ProviderResult(
+                provider=TENCENT_QUOTE_DESCRIPTOR,
+                items=(_snapshot("600519"),),
+                issues=(
+                    DataIssue(
+                        IssueSeverity.ERROR,
+                        IssueCategory.PARSE,
+                        "tencent-finance",
+                        "fetch_quotes",
+                        "must never enter metrics",
+                        False,
+                        WHEN,
+                        code="malformed_record",
+                    ),
+                ),
+            ),
+            ProviderMetricStatus.PARTIAL,
+            1,
+            1,
+            None,
+        ),
+        (
+            ProviderNetworkError(
+                provider_id="tencent-finance",
+                operation="fetch_quotes",
+                safe_message="exception text must never enter metrics",
+                code="network_error",
+            ),
+            ProviderMetricStatus.FAILED,
+            0,
+            1,
+            "network_error",
+        ),
+        (
+            RuntimeError(
+                "https://provider.invalid response body token=secret symbol=600519"
+            ),
+            ProviderMetricStatus.FAILED,
+            0,
+            1,
+            "unexpected_error",
+        ),
+    ],
+)
+def test_shadow_emits_exactly_one_terminal_metric_per_logical_call(
+    outcome,
+    status: ProviderMetricStatus,
+    item_count: int,
+    issue_count: int,
+    error_code: str | None,
+) -> None:
+    events: list[ProviderMetricEvent] = []
+    result, _, store = _run_with_metric(outcome, events.append)
+    assert len(events) == 1
+    assert events[0] == ProviderMetricEvent(
+        provider_id="tencent-finance",
+        operation="quote_shadow",
+        status=status,
+        duration_ms=125,
+        item_count=item_count,
+        issue_count=issue_count,
+        retry_count=0,
+        error_code=error_code,
+    )
+    assert len(store.finishes) == 1
+    assert result.status == status.value
+
+
+def _run_with_metric(outcome, metric_emitter, *, store=None):
+    provider = FakeProvider(outcome)
+    store = store or FakeStore()
+    result = run_tencent_quote_shadow(
+        securities=SECURITIES,
+        run_context=_context(),
+        settings=SETTINGS,
+        store=store,
+        provider_factory=lambda settings: provider,
+        clock=lambda: WHEN,
+        monotonic=_ticks(),
+        metric_emitter=metric_emitter,
+    )
+    return result, provider, store
+
+
+def test_metric_emitter_failure_does_not_change_shadow_or_provider_call_result() -> None:
+    outcome = ProviderResult(
+        provider=TENCENT_QUOTE_DESCRIPTOR,
+        items=(_snapshot("600519"),),
+    )
+    baseline, _, baseline_store = _run_with_metric(outcome, lambda event: None)
+
+    def fail(event: ProviderMetricEvent) -> None:
+        raise RuntimeError(
+            "https://provider.invalid response body token=secret symbol=600519"
+        )
+
+    actual, provider, actual_store = _run_with_metric(outcome, fail)
+    assert actual == baseline
+    assert len(provider.calls) == 1
+    assert actual_store.saved == baseline_store.saved
+    assert actual_store.finishes == baseline_store.finishes
+
+
+def test_start_failure_emits_one_skipped_metric_without_provider_construction() -> None:
+    events: list[ProviderMetricEvent] = []
+    store = FakeStore(fail_start=True)
+    result, provider, _ = _run_with_metric(
+        ProviderResult(provider=TENCENT_QUOTE_DESCRIPTOR),
+        events.append,
+        store=store,
+    )
+    assert result.status == "skipped"
+    assert provider.calls == []
+    assert len(events) == 1
+    assert events[0].status is ProviderMetricStatus.SKIPPED
+    assert events[0].error_code == "provider_call_start_failed"
+
+
+def test_enabled_storage_skip_emits_metric_but_does_not_construct_online_objects() -> None:
+    events: list[ProviderMetricEvent] = []
+
+    def fail(*args, **kwargs):
+        raise AssertionError("skipped path must not construct online objects")
+
+    result = maybe_run_tencent_quote_shadow(
+        config={"providers": {"tencent_quote": {"shadow_enabled": True}}},
+        watchlist=[{"market": "cn", "symbol": "600519", "name": "secret name"}],
+        run_context=_context(False),
+        dry_run=False,
+        provider_factory=fail,
+        store_factory=fail,
+        metric_emitter=events.append,
+    )
+    assert result.status == "skipped"
+    assert len(events) == 1
+    assert events[0].status is ProviderMetricStatus.SKIPPED
+    assert events[0].error_code == "storage_inactive"
+
+
+@pytest.mark.parametrize("dry_run,enabled", [(True, True), (False, False)])
+def test_closed_shadow_does_not_emit_metrics(
+    dry_run: bool,
+    enabled: bool,
+) -> None:
+    events: list[ProviderMetricEvent] = []
+    result = maybe_run_tencent_quote_shadow(
+        config={"providers": {"tencent_quote": {"shadow_enabled": enabled}}},
+        watchlist=[{"market": "cn", "symbol": "600519", "name": "secret name"}],
+        run_context=_context(),
+        dry_run=dry_run,
+        provider_factory=lambda settings: (_ for _ in ()).throw(AssertionError()),
+        store_factory=lambda context: (_ for _ in ()).throw(AssertionError()),
+        metric_emitter=events.append,
+    )
+    assert result.status == "disabled"
+    assert events == []
