@@ -1,12 +1,15 @@
 # daily_report_agent 开发进度
 
-更新时间：2026-07-25
+更新时间：2026-07-26
 当前节点：阶段 2-B4 五日证据、合并候选完整离线回归及同候选受控在线验证均已通过；
 腾讯仍是默认关闭的 Shadow Provider，未进入正式或备用行情路由。并行 P1 的 Eastmoney
 CN Profile 离线骨架和验收入口已完成，但两次独立受控观察均在 `r.json()` 边界失败，
 没有形成 observed Fixture；并行 P2 的 Eastmoney CN News 离线 Provider、synthetic
 契约测试和存储幂等验证已完成，observed Fixture 仍待补充。P4-00 生成物治理和 P4-01
-离线 CI 基线已完成；当前暂停继续开发，等待上传 GitHub 并首次验证远程 CI。
+离线 CI 基线已完成；P4-01R 在提交 `b7fa7386b211579aaa1999f415acc9da07436119`
+通过 GitHub Actions 运行
+[`30193535946`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30193535946)
+的 Python 3.10/3.13 远端门禁。该结果不改变任何 Provider 的阶段或默认路由状态。
 
 `daily_report_agent` 是一个面向多数据源、证据驱动分析的每日市场信息智能体。当前正式
 链路继续使用既有 DataSource；新的 Provider 能力采用契约化、离线测试和旁路观察逐步
@@ -52,8 +55,8 @@ Tencent QuoteProvider
 | 并行 P1：Eastmoney CN Profile | 阶段性完成 | 离线契约、Provider 骨架和 synthetic 验收入口已完成；真实脱敏 Fixture 未完成 |
 | 并行 P2：Eastmoney CN News | 阶段性完成 | 离线 Transport/Parser/Provider、synthetic 契约测试和存储幂等验证已完成；observed Fixture 未完成 |
 | P4-00：生成物治理 | 已完成 | 删除历史跟踪 bytecode，测试后工作区不再被缓存污染 |
-| P4-01：离线 CI | 本地验收完成 | Python 3.10/3.13 工作流已建立，等待上传后首次远程运行 |
-| 当前开发状态 | 已暂停 | 等待上传 GitHub；暂停新的 Provider、路由和在线观察任务 |
+| P4-01：离线 CI | 远端门禁通过 | 2026-07-26 的运行 `30193535946` 中 Python 3.10/3.13 均为 `407 passed` |
+| 当前开发状态 | P4-01R 验收完成 | 后续 Provider、路由和在线观察仍须另立任务并单独授权 |
 
 ### 当前基线
 
@@ -475,9 +478,12 @@ Eastmoney Profile 的 synthetic 离线验收以及 Eastmoney News 的 synthetic 
 - 不修改现有金融判断和报告业务语义；
 - 每接入一个 Provider，都有独立契约测试、失败隔离测试和明确的在线门禁。
 
-## 当前暂停点
+## P4-01 远端验收
 
-截至 2026-07-25，当前本地分支测试为 `407 passed`，工作区无跟踪或未跟踪的 Python
-生成物。P4-00 与 P4-01 已完成本地验收，但 GitHub Actions 尚未远程运行。项目在此节点
-暂停继续开发，等待上传 GitHub；暂停期间不重试 Eastmoney Profile、不启动新的在线观察，
-也不设计或启用腾讯正式路由。
+截至 2026-07-26，P4-01R 验收提交
+`b7fa7386b211579aaa1999f415acc9da07436119` 的本地 Python 3.10/3.13 完整离线测试
+均为 `407 passed`，工作区无 Python 生成物。GitHub Actions 运行
+[`30193535946`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30193535946)
+已成功创建并通过 Python 3.10 和 3.13 两个 Job，P4-01 已由本地完成升级为远端门禁
+通过。该验收不完成 P1-04，不表示任何 Provider 晋级，也不授权重试 Eastmoney Profile、
+启动新的在线观察或设计、启用腾讯正式路由。

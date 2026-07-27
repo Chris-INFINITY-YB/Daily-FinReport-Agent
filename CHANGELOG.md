@@ -69,7 +69,8 @@
   通过；这不表示腾讯已成为正式或备用行情源。
 - 删除历史误提交的 Python bytecode，并忽略 `__pycache__`、`*.py[cod]` 及常见测试/
   分析缓存，双版本测试不再污染 Git 工作区。
-- 当前开发进度暂停，等待上传 GitHub 和首次远程运行 Python 3.10/3.13 离线 CI。
+- P4-01R 已完成 GitHub Python 3.10/3.13 远端离线门禁；后续 Provider、路由或在线
+  观察仍须另立任务并单独授权。
 
 ### Security
 
@@ -95,7 +96,11 @@
 
 - 当前完整离线测试：Python 3.10.20 和 Python 3.13.9 均为 `407 passed`。
 - P4-00 完成后版本控制及项目工作区中的 Python 生成物均为 0；P4-01 本地等价 CI 门禁
-  通过，GitHub Actions 尚待上传后的首次远程运行。
+  通过。P4-01R 验收提交 `b7fa7386b211579aaa1999f415acc9da07436119` 已在
+  2026-07-26 的 GitHub Actions
+  [`30193535946`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30193535946)
+  中通过 Python 3.10/3.13 两个 Job（均为 `407 passed`），由本地完成升级为远端门禁
+  通过。
 - Eastmoney Profile 相关测试：`41 passed`；其中离线验收入口测试：`12 passed`。
 - Eastmoney News Provider、Parser、契约、存储及相关 Repository/事务测试：`83 passed`。
 - `compileall`、固定日期 dry-run、README 中的 synthetic 离线命令和 `git diff --check`
