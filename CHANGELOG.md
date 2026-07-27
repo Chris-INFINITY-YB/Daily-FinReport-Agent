@@ -51,6 +51,15 @@
   2026-07-24 的逐日结果、数据质量检查、审计清单、延迟统计、证据限制和未解除门禁。
 - 新增 Python 3.10/3.13 离线 CI 基线，执行完整 pytest、`compileall`、
   `git diff --check` 和测试后工作区清洁检查；CI 不安装 online extra 或注入 API Key。
+- 新增 Provider 安全指标与日志基础设施：
+  - 冻结、slots 化事件严格限制为 Provider ID、operation、封闭终态、耗时、三个非负计数
+    和安全错误码八个字段；
+  - 固定字段顺序的单行 JSON 只从已验证事件生成，默认使用标准日志且不创建文件；
+  - 普通输出失败不会改变 Provider、ProviderCall、Snapshot、Shadow 或正式 Pipeline
+    结果，`KeyboardInterrupt` 和 `SystemExit` 仍向上传播；
+  - 仅接入现有腾讯 Quote Shadow 编排边界，未接入 Eastmoney 或正式 Provider 路由。
+- 新增 Provider 指标与安全日志设计文档
+  [`docs/provider_metrics_and_safe_logging.md`](docs/provider_metrics_and_safe_logging.md)。
 
 ### Changed
 
@@ -71,6 +80,11 @@
   分析缓存，双版本测试不再污染 Git 工作区。
 - P4-01R 已完成 GitHub Python 3.10/3.13 远端离线门禁；后续 Provider、路由或在线
   观察仍须另立任务并单独授权。
+- P4-01R 已通过 merge commit
+  `2eeec791a0494b78359d67dd4e0875e81d138cd7` 进入 `main`；合并后自动运行
+  `30249579799` 和手动复核运行 `30249744777` 的 Python 3.10/3.13 Job 均成功。
+- 腾讯包的在线 Transport 类型改为兼容的惰性导出；公开名称保持不变，默认关闭、
+  dry-run 和指标模块导入路径不会提前加载在线 Transport。
 
 ### Security
 
@@ -91,10 +105,20 @@
 - 腾讯仍为默认关闭的 Shadow Provider；`storage.enabled` 和
   `providers.tencent_quote.shadow_enabled` 均保持 `false`，B4 观测没有触发正式分析、
   报告、通知或行情路由。
+- Provider 指标事件没有证券、价格、run ID、数据库路径、请求指纹、URL、Header、
+  Cookie、Token、响应正文、异常正文、DataIssue message、details 或动态扩展字段。
+- P4-02 全部新增测试均为纯离线测试；没有调用腾讯、Eastmoney 或其他 Provider 在线接口。
 
 ### Validation
 
-- 当前完整离线测试：Python 3.10.20 和 Python 3.13.9 均为 `407 passed`。
+- 当前完整离线测试：Python 3.10.20 和 Python 3.13.9 均为 `453 passed`。
+- P4-02 定向离线测试：指标契约 `31 passed`，腾讯 Shadow `34 passed`，
+  Provider contracts/errors `33 passed`，ProviderCall Repository `9 passed`。
+- Python 3.10/3.13 `compileall` 均通过且缓存输出位于项目外；普通 dry-run、Prompt
+  SHA-256、固定日期 dry-run SHA-256、离线 wheel 构建、双版本临时安装及导入均通过。
+- P4-02 实现 HEAD `29233c22155bf6ecf2c5b3ff32c12942cacbfc70` 的 GitHub Actions
+  push 运行 `30251950437` 和 pull_request 运行 `30252485316` 均通过 Python 3.10/3.13
+  全部步骤；Draft PR `#3` 保持 Draft，未合并。
 - P4-00 完成后版本控制及项目工作区中的 Python 生成物均为 0；P4-01 本地等价 CI 门禁
   通过。P4-01R 验收提交 `b7fa7386b211579aaa1999f415acc9da07436119` 已在
   2026-07-26 的 GitHub Actions

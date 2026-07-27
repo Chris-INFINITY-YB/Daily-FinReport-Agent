@@ -12,10 +12,13 @@ from daily_report_agent.models.issues import (
 )
 from daily_report_agent.models.news import is_timezone_aware
 
-from .contracts import normalize_provider_id
+from .contracts import (
+    normalize_provider_error_code,
+    normalize_provider_id,
+    normalize_provider_operation,
+)
 
 
-_OPERATION_PATTERN = re.compile(r"^[a-z][a-z0-9_-]*$")
 _URL_PATTERN = re.compile(r"https?://[^\s]+", re.IGNORECASE)
 _BEARER_PATTERN = re.compile(r"(?i)\bbearer\s+[^\s,;]+")
 _SECRET_PATTERN = re.compile(
@@ -48,15 +51,9 @@ class ProviderError(Exception):
         http_status: int | None = None,
     ) -> None:
         self.provider_id = normalize_provider_id(provider_id)
-        if not isinstance(operation, str) or _OPERATION_PATTERN.fullmatch(
-            operation.strip()
-        ) is None:
-            raise ValueError("operation 必须是安全的小写短标识")
-        self.operation = operation.strip()
+        self.operation = normalize_provider_operation(operation)
         self.safe_message = _sanitize_safe_message(safe_message)
-        if code is not None and (not isinstance(code, str) or not code.strip()):
-            raise ValueError("code 必须是非空字符串或 None")
-        self.code = code.strip() if code is not None else None
+        self.code = normalize_provider_error_code(code)
         if retryable is not None and not isinstance(retryable, bool):
             raise TypeError("retryable 必须是 bool 或 None")
         self.retryable = self.default_retryable if retryable is None else retryable
