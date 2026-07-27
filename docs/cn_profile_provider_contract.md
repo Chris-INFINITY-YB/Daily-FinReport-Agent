@@ -1,6 +1,6 @@
 # CN Profile Provider 字段契约与证据边界
 
-更新时间：2026-07-25
+更新时间：2026-07-27
 状态：P1-03/P1-05 离线能力已完成；P1-04 仍未完成，无在线 Transport，尚无 CN Profile 脱敏 Fixture
 
 本文只固定 CN Profile Provider 的身份、字段、结果和证据门禁。它不改变现有
@@ -179,7 +179,41 @@ DataFrame 之前。因此没有观察到可用于 Fixture 的真实行结构、�
 Parser、Provider、synthetic Fixture、正式链路、默认配置和腾讯 B4 状态均不因此改变。
 任何未来观察仍须重新获得单独授权，不能作为本次调用的重试。
 
-### 3.7 P1-05 显式离线验收入口
+### 3.7 2026-07-27 独立受控观察记录（P1-04R3）
+
+本记录是单独授权、单独计数的第三次诊断性观察，不是 P1-04R 或 P1-04R2 的继续或
+重试。该观察已经结束且失败，不构成 P1-04 完成证据，也不授权再次请求。
+
+| 项目 | 安全记录 |
+|---|---|
+| 观察日期与时区 | `2026-07-27`，`Asia/Shanghai` |
+| 调用库/版本 | AkShare `1.18.46` |
+| 函数与证券 | `stock_individual_info_em(symbol="600519", timeout=10.0)` |
+| 调用边界 | 逻辑调用 `1`，底层 HTTP 请求 `1`，自动重试 `0`，并发 `0`，redirect `0`；禁止第二次发送、循环、分页、替代证券或替代接口 |
+| 安全 HTTP 诊断 | status `502`；规范化 Content-Type `text/html`；墙钟耗时 `7032 ms` |
+| 结果 | 失败；安全错误类别为 `json_decode`，异常类型为 `JSONDecodeError`；没有形成 `item/value` 行记录，行数 `0` |
+| 数据保留 | 未输出或保存原始响应、正文或片段、Response、完整 DataFrame、完整 URL、查询参数、Header、Cookie、Token、代理信息、异常正文、traceback 或底层异常链 |
+| Fixture | 未创建 observed Fixture，也未从 synthetic 数据或静态源码补写真实结构 |
+| 审计源码 | `akshare/stock/stock_info_em.py`，SHA-256 为 `3264436193901655cccf914560327ceb7fc7dbf919785984da6451ca5ea5d33f` |
+
+联网前静态审计确认 AkShare 版本和源码 SHA-256 与前两次记录一致；目标函数仍只有一个
+`requests.get` 和一个本地 `r.json()`，没有循环、递归、自动重试或分页。项目外一次性
+程序先通过 synthetic 脱敏、最小行筛选和安全失败输出自检，再禁用重试和 redirect 并在
+第二次底层发送前设置强制阻断。观察结束后没有再次访问 Provider。
+
+status `502`、Content-Type `text/html` 和随后发生的 `JSONDecodeError` 是本次直接观察
+事实。该异常仍发生在 AkShare 成功形成公开 `item/value` DataFrame 之前，因此没有观察
+到可用于 Fixture 的真实字段名、基本类型、空值形态或响应证券身份。WAF、反爬、临时
+网关或上游故障、接口失效和 AkShare 缺陷均没有得到充分证明，只能作为未验证候选原因，
+不能由本记录归因。
+
+本次失败不改变证据等级：`name` 和 `industry` 仍为 E1，`exchange`、`currency` 和
+`description` 继续没有字段证据，P1-04 保持未完成。由于三个分别授权、分别计数的观察
+均未形成 JSON 或 `item/value` 行记录，停止对相同入口继续进行在线尝试。下一任务应改为
+纯离线评估替代来源或替代 Transport，并重新建立来源、字段和安全边界；不得发起第四次
+相同请求。
+
+### 3.8 P1-05 显式离线验收入口
 
 完成日期：2026-07-18
 

@@ -167,6 +167,22 @@
     - 本次是单独授权的新观察，不是 P1-04R 的重试；失败记录见
       [`cn_profile_provider_contract.md`](cn_profile_provider_contract.md)；
     - `name` 和 `industry` 仍为 E1，P1-04 继续未完成，未来观察仍须单独授权。
+  - [x] **P1-04R3 固化 2026-07-27 独立受控观察失败记录（2026-07-27 已完成）**
+    - 联网前确认 AkShare `1.18.46`、目标源码 SHA-256，以及单请求、无重试/循环/分页
+      边界均未变化；
+    - 项目外一次性程序通过 synthetic 脱敏自检后，固定调用
+      `stock_individual_info_em(symbol="600519", timeout=10.0)`；
+    - 逻辑调用 `1`、底层 HTTP 请求 `1`、自动重试 `0`、并发 `0`、redirect `0`，
+      墙钟耗时 `7032 ms`；
+    - 安全 HTTP 事实为 status `502`、规范化 Content-Type `text/html`；随后在本地
+      `r.json()` 边界发生 `JSONDecodeError`，安全错误类别为 `json_decode`；
+    - 未形成 `item/value` 行记录，未保存正文、完整 DataFrame、URL、请求参数或异常
+      正文，未创建 observed Fixture；
+    - 本次不是前两次请求的继续或重试；失败记录见
+      [`cn_profile_provider_contract.md`](cn_profile_provider_contract.md)；
+    - `name` 和 `industry` 仍为 E1，P1-04 继续未完成。连续第三次未形成 JSON/行记录，
+      停止相同入口的后续在线尝试；下一任务改为离线评估替代来源或替代 Transport，
+      不发起第四次相同请求。
   - 正常资料；
   - 部分字段缺失；
   - 空响应；
@@ -183,8 +199,9 @@
 
 阶段性说明（2026-07-18）：P1 的离线 Provider 骨架、Protocol/字段契约和显式离线验收
 入口已经完成，但 P1 整体尚未完成。P1-04 仍等待由真实响应制作的最小脱敏 Fixture；
-2026-07-18 和 2026-07-25 两次各自授权、各自计数的受控请求均在本地 `r.json()` 解析
-边界失败，没有形成 `item/value` 行记录。
+2026-07-18、2026-07-25 和 2026-07-27 三次各自授权、各自计数的受控请求均在本地
+`r.json()` 解析边界失败，没有形成 `item/value` 行记录。相同入口的后续在线观察现已
+停止；下一任务应改为纯离线评估替代来源或替代 Transport。
 该证据缺口不阻塞 P2 的纯离线开发，但 Eastmoney Profile 仍不得被声明为在线可用，也
 不得进入正式 DataSource 路由。
 
@@ -403,7 +420,8 @@ B4 五日证据和候选门禁均已通过，完整记录见
 自动运行 `30249579799` 和手动复核运行 `30249744777` 的 Python 3.10/3.13 Job 均成功。
 P4-01 不再处于远端待验证状态，但该结果不扩大后续任务授权：
 
-- 不重试 Eastmoney Profile；未来观察仍须重新单独授权；
+- 不再使用相同入口在线尝试 Eastmoney Profile；下一任务改为纯离线评估替代来源或替代
+  Transport；
 - 不启动 P2-04 在线观察或 P3 开发；
 - 不设计或启用腾讯正式路由、降级、缓存、限流、重试或熔断；
 - 不修改默认关闭配置；

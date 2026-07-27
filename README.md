@@ -457,8 +457,8 @@ QuoteProvider 的验收门禁。
 后续路线包括：
 
 1. 上传当前本地提交并验证 Python 3.10/3.13 GitHub Actions 离线 CI；
-2. 为 Eastmoney Profile 补充真实响应制作的最小脱敏 Fixture 和离线契约证据，继续保持
-   证券静态资料与动态行情分离；再次在线观察必须重新单独授权；
+2. 停止对 `stock_individual_info_em` 相同入口继续在线尝试 Eastmoney Profile，下一任务
+   改为纯离线评估替代来源或替代 Transport，并继续保持证券静态资料与动态行情分离；
 3. 接入至少两个可切换的 A 股公司新闻来源；
 4. 将交易所或巨潮公告建模为独立公告来源；
 5. 接入财联社类市场快讯和其他市场资讯来源；
