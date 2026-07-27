@@ -16,7 +16,11 @@ CN Profile 离线骨架和验收入口已完成，但两次独立受控观察均
 [`30249744777`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30249744777)
 的 Python 3.10/3.13 Job 也均成功。该结果不改变任何 Provider 的阶段或默认路由状态。
 P4-02 Provider 安全指标事件和固定 JSON 日志已完成离线实现并接入默认关闭的腾讯 Quote
-Shadow，当前等待 Draft PR 最新 HEAD 的双版本远端门禁，不提前视为完成。
+Shadow；实现 HEAD `29233c22155bf6ecf2c5b3ff32c12942cacbfc70` 的 push 运行
+[`30251950437`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30251950437)
+和 pull_request 运行
+[`30252485316`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30252485316)
+均通过 Python 3.10/3.13 全部步骤，P4-02 已完成远端验收。
 
 `daily_report_agent` 是一个面向多数据源、证据驱动分析的每日市场信息智能体。当前正式
 链路继续使用既有 DataSource；新的 Provider 能力采用契约化、离线测试和旁路观察逐步
@@ -63,8 +67,8 @@ Tencent QuoteProvider
 | 并行 P2：Eastmoney CN News | 阶段性完成 | 离线 Transport/Parser/Provider、synthetic 契约测试和存储幂等验证已完成；observed Fixture 未完成 |
 | P4-00：生成物治理 | 已完成 | 删除历史跟踪 bytecode，测试后工作区不再被缓存污染 |
 | P4-01：离线 CI | 已合并并复核 | merge `2eeec791…` 后自动与手动运行的 Python 3.10/3.13 Job 均成功 |
-| P4-02：Provider 指标与安全日志 | 远端验收中 | 八字段安全事件、固定 JSON 日志及腾讯 Shadow 最小接入已完成离线实现 |
-| 当前开发状态 | P4-02 远端验收中 | 正式路由、重试、缓存、限流、熔断和新的在线观察仍须另立任务并单独授权 |
+| P4-02：Provider 指标与安全日志 | 远端门禁通过 | 八字段安全事件、固定 JSON 日志及腾讯 Shadow 最小接入的 push/PR 双版本 CI 均成功 |
+| 当前开发状态 | P4-02 验收完成 | 正式路由、重试、缓存、限流、熔断和新的在线观察仍须另立任务并单独授权 |
 
 ### 当前基线
 

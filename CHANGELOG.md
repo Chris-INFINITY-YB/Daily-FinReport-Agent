@@ -116,6 +116,9 @@
   Provider contracts/errors `33 passed`，ProviderCall Repository `9 passed`。
 - Python 3.10/3.13 `compileall` 均通过且缓存输出位于项目外；普通 dry-run、Prompt
   SHA-256、固定日期 dry-run SHA-256、离线 wheel 构建、双版本临时安装及导入均通过。
+- P4-02 实现 HEAD `29233c22155bf6ecf2c5b3ff32c12942cacbfc70` 的 GitHub Actions
+  push 运行 `30251950437` 和 pull_request 运行 `30252485316` 均通过 Python 3.10/3.13
+  全部步骤；Draft PR `#3` 保持 Draft，未合并。
 - P4-00 完成后版本控制及项目工作区中的 Python 生成物均为 0；P4-01 本地等价 CI 门禁
   通过。P4-01R 验收提交 `b7fa7386b211579aaa1999f415acc9da07436119` 已在
   2026-07-26 的 GitHub Actions

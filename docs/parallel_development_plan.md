@@ -307,7 +307,7 @@ P4 可与 P1～P3 穿插，但每项应单独提交。
     和手动复核运行
     [`30249744777`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30249744777)
     的 Python 3.10/3.13 Job 均成功。
-- [ ] **P4-02 Provider 指标与安全日志设计（实现完成，远端验收中）**
+- [x] **P4-02 Provider 指标与安全日志设计（2026-07-27 已完成）**
   - 只记录 Provider ID、operation、状态、耗时、数量和安全错误码；
   - 不记录 Token、Cookie、完整 URL、真实响应正文；
   - 日志失败不得改变正式 Pipeline 状态。
@@ -321,7 +321,16 @@ P4 可与 P1～P3 穿插，但每项应单独提交。
   - ProviderCall 状态、请求指纹、Snapshot 持久化和正式 PipelineRun 语义保持不变；
   - 详细设计与限制见
     [`provider_metrics_and_safe_logging.md`](provider_metrics_and_safe_logging.md)；
-  - 只有 PR 最新 HEAD 的 Python 3.10/3.13 远端离线门禁通过后才勾选完成。
+  - 实现 HEAD `29233c22155bf6ecf2c5b3ff32c12942cacbfc70` 的 GitHub Actions
+    push 运行
+    [`30251950437`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30251950437)
+    和 pull_request 运行
+    [`30252485316`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30252485316)
+    均成功创建 Python 3.10/3.13 Job，四个 Job 的 pytest、compileall、diff 及工作区
+    清洁步骤全部通过；
+  - Draft PR
+    [`#3`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/pull/3)
+    保持 Draft，未合并。
 - [x] **P4-03 当前进度文档同步（2026-07-25 已完成）**
   - 每完成一个 Provider，更新字段证据、限制和真实验证状态；
   - 明确区分“离线实现完成”“单次在线验证”“连续观测验收”；
