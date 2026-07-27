@@ -33,6 +33,15 @@
   [`docs/cn_profile_provider_contract.md`](docs/cn_profile_provider_contract.md)，并建立 B4
   观察期间的并行开发计划
   [`docs/parallel_development_plan.md`](docs/parallel_development_plan.md)。
+- 新增 P1-04A CN Profile 替代来源静态可行性 ADR
+  [`docs/cn_profile_source_alternatives.md`](docs/cn_profile_source_alternatives.md)：
+  - 比较 Eastmoney 同源替代边界、上交所、深交所、北交所、CNInfo、Tushare Pro 和
+    Xueqiu 的来源身份、字段、响应、许可、离线性、Fixture 与维护风险；
+  - 记录 AkShare `1.18.46` 候选模块相对路径、函数边界和 SHA-256，不记录本机绝对路径；
+  - Proposed 建议建立独立 `cninfo` Profile Provider，与冻结在线方向的 `eastmoney`
+    骨架并存；该建议等待用户批准且不表示在线可用；
+  - 定义但不实施
+    `P1-04B：CNInfo CN Profile 离线 Provider 契约与 synthetic Fixture`。
 - 新增 Eastmoney CN 公司新闻纯离线 Provider：
   - 独立 `NEWS` Descriptor，Provider ID 为 `eastmoney`，市场为 `cn`，新闻类型为 `news`；
   - 同步只读 Transport Protocol、无 I/O 纯 Parser 和显式依赖注入 Provider；
@@ -71,6 +80,8 @@
   门禁仍须在后续每次提交持续执行。
 - README 更新当前节点、Eastmoney Profile/News 离线能力、synthetic 验收命令、项目路径、
   安装/验证命令和当前开发分支测试基线。
+- 路线图将 P1-04A 标记为“静态评估完成、推荐待批准”，并明确 P1-04B 只有在用户批准
+  `cninfo` Provider ID 后才能开始；P1-04、P2-04 和 P3 状态均未改变。
 - 腾讯 Shadow 汇总 `main()` 支持注入 timezone-aware clock；CLI 默认仍使用当前 UTC，
   测试使用固定时间，从而消除固定 2026-07-14 Fixture 随系统日期移出 7 日窗口的问题。
   naive 或非 datetime clock 会被安全拒绝，7 日窗口和原有汇总兼容断言保持不变。
@@ -108,9 +119,19 @@
 - Provider 指标事件没有证券、价格、run ID、数据库路径、请求指纹、URL、Header、
   Cookie、Token、响应正文、异常正文、DataIssue message、details 或动态扩展字段。
 - P4-02 全部新增测试均为纯离线测试；没有调用腾讯、Eastmoney 或其他 Provider 在线接口。
+- P1-04A 只读取官方公开文档、本机包元数据和静态源码；没有调用 Eastmoney、CNInfo、
+  交易所、Tushare、Xueqiu 或其他 Provider 数据接口，没有创建 Fixture、Provider 或
+  在线 Transport。
 
 ### Validation
 
+- P1-04A 文档链接、相对路径、证据日期和敏感模式检查通过；Python 3.10.20 与
+  Python 3.13.9 完整离线测试均为 `453 passed`，双版本 compileall、普通/固定日期
+  dry-run、固定哈希、离线 wheel 构建及双版本临时安装导入均通过。
+- P1-04A wheel SHA-256 为
+  `4c5de25767c404edc637879e67156ccb2eafeb4e0a99899097823fa144abd416`；
+  `storage.enabled=false`、`providers.tencent_quote.shadow_enabled=false`，项目内生成物
+  检查为 0。
 - 当前完整离线测试：Python 3.10.20 和 Python 3.13.9 均为 `453 passed`。
 - P4-02 定向离线测试：指标契约 `31 passed`，腾讯 Shadow `34 passed`，
   Provider contracts/errors `33 passed`，ProviderCall Repository `9 passed`。
@@ -151,6 +172,10 @@
 - 2026-07-25 的第二次独立受控资料观察在相同 `r.json()` 边界失败；逻辑调用和底层请求
   均为 `1`、自动重试和并发均为 `0`，未保存原始响应或完整 DataFrame，也未创建
   observed Fixture。它不是 2026-07-18 调用的重试，未来观察仍须重新单独授权。
+- 2026-07-27 的第三次独立受控观察返回 HTTP `502`、Content-Type `text/html`，
+  redirect `0`，随后在相同 `r.json()` 边界发生 `JSONDecodeError`；相同入口停止后续
+  在线尝试。P1-04A 的 `cninfo` 建议仍为 Proposed，内部 Web API 自动化和脱敏 Fixture
+  保存边界尚未获批准。
 - synthetic Fixture 只验证离线调用链，不证明真实 `item/value` 响应结构或线上可用性。
 - Eastmoney Profile Provider 不能被声明为在线可用，也不能进入正式 DataSource 路由。
 - P2-04 仍未完成：Eastmoney News 当前只有 N2 静态证据和 synthetic Fixture，没有最小
