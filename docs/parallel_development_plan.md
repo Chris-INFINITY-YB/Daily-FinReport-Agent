@@ -1,6 +1,6 @@
 # B4 观测并行开发与合并门禁计划
 
-更新时间：2026-07-25
+更新时间：2026-07-27
 适用范围：腾讯 QuoteProvider 阶段 2-B4 及合并候选门禁完成后的暂停与后续开发边界
 
 ## 1. 结论与执行原则
@@ -35,8 +35,8 @@
 | B4 RawResponse | 0 |
 | B4 状态 | 五日证据、候选完整离线回归及同候选受控在线验证均通过 |
 | 合并候选 | `b921a8e8a541551e19af069666d9be3edba2fa3d` |
-| 当前本地测试 | Python 3.10/3.13 均为 `407 passed` |
-| 当前远端门禁 | P4-01R 于 2026-07-26 在 Python 3.10/3.13 均通过 |
+| 当前本地测试 | P4-02 分支 Python 3.10/3.13 均为 `453 passed` |
+| 当前远端门禁 | P4-01R 已合并；合并后自动与手动 Python 3.10/3.13 Job 均成功 |
 
 回归保护值：
 
@@ -301,10 +301,27 @@ P4 可与 P1～P3 穿插，但每项应单独提交。
     [`30193535946`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30193535946)
     已成功创建 Python 3.10/3.13 两个 Job，均为 `407 passed`，compileall 和工作区清洁
     门禁同时通过；P4-01 已由本地完成升级为远端门禁通过。
-- [ ] **P4-02 Provider 指标与安全日志设计**
+  - P4-01R 已通过 merge commit
+    `2eeec791a0494b78359d67dd4e0875e81d138cd7` 进入 `main`；合并后自动运行
+    [`30249579799`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30249579799)
+    和手动复核运行
+    [`30249744777`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30249744777)
+    的 Python 3.10/3.13 Job 均成功。
+- [ ] **P4-02 Provider 指标与安全日志设计（实现完成，远端验收中）**
   - 只记录 Provider ID、operation、状态、耗时、数量和安全错误码；
   - 不记录 Token、Cookie、完整 URL、真实响应正文；
   - 日志失败不得改变正式 Pipeline 状态。
+  - 新增冻结、slots 化的 `ProviderMetricEvent`，公开字段严格固定为
+    `provider_id`、`operation`、`status`、`duration_ms`、`item_count`、
+    `issue_count`、`retry_count`、`error_code`；
+  - 单行 JSON 日志字段顺序固定，只能从已验证事件生成，普通输出失败被隔离，
+    `KeyboardInterrupt` 和 `SystemExit` 不被吞掉；
+  - 当前只接入腾讯 Quote Shadow 编排边界；默认关闭和 dry-run 路径不加载在线
+    Transport，也不产生指标事件；
+  - ProviderCall 状态、请求指纹、Snapshot 持久化和正式 PipelineRun 语义保持不变；
+  - 详细设计与限制见
+    [`provider_metrics_and_safe_logging.md`](provider_metrics_and_safe_logging.md)；
+  - 只有 PR 最新 HEAD 的 Python 3.10/3.13 远端离线门禁通过后才勾选完成。
 - [x] **P4-03 当前进度文档同步（2026-07-25 已完成）**
   - 每完成一个 Provider，更新字段证据、限制和真实验证状态；
   - 明确区分“离线实现完成”“单次在线验证”“连续观测验收”；
@@ -368,12 +385,14 @@ B4 五日证据和候选门禁均已通过，完整记录见
 
 ## 8. 当前远端验收状态
 
-截至 2026-07-26，P4-00 与 P4-01 已完成本地验收，P4-01R 验收提交
+截至 2026-07-27，P4-00 与 P4-01 已完成本地验收，P4-01R 验收提交
 `b7fa7386b211579aaa1999f415acc9da07436119` 的 Python 3.10/3.13 本地完整离线测试
 各为 `407 passed`，工作区无 Python 生成物。GitHub Actions 运行
 [`30193535946`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30193535946)
 的两个矩阵 Job 也均为 `407 passed`，远端 compileall 与工作区清洁门禁通过。P4-01
-不再处于远端待验证状态，但该结果不扩大后续任务授权：
+已通过 merge commit `2eeec791a0494b78359d67dd4e0875e81d138cd7` 进入 `main`；合并后
+自动运行 `30249579799` 和手动复核运行 `30249744777` 的 Python 3.10/3.13 Job 均成功。
+P4-01 不再处于远端待验证状态，但该结果不扩大后续任务授权：
 
 - 不重试 Eastmoney Profile；未来观察仍须重新单独授权；
 - 不启动 P2-04 在线观察或 P3 开发；

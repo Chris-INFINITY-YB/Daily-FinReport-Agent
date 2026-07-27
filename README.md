@@ -1,6 +1,6 @@
 # daily_report_agent 开发进度
 
-更新时间：2026-07-26
+更新时间：2026-07-27
 当前节点：阶段 2-B4 五日证据、合并候选完整离线回归及同候选受控在线验证均已通过；
 腾讯仍是默认关闭的 Shadow Provider，未进入正式或备用行情路由。并行 P1 的 Eastmoney
 CN Profile 离线骨架和验收入口已完成，但两次独立受控观察均在 `r.json()` 边界失败，
@@ -9,7 +9,14 @@ CN Profile 离线骨架和验收入口已完成，但两次独立受控观察均
 离线 CI 基线已完成；P4-01R 在提交 `b7fa7386b211579aaa1999f415acc9da07436119`
 通过 GitHub Actions 运行
 [`30193535946`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30193535946)
-的 Python 3.10/3.13 远端门禁。该结果不改变任何 Provider 的阶段或默认路由状态。
+的 Python 3.10/3.13 远端门禁，并已通过 merge commit
+`2eeec791a0494b78359d67dd4e0875e81d138cd7` 进入 `main`。合并后自动运行
+[`30249579799`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30249579799)
+和手动复核运行
+[`30249744777`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30249744777)
+的 Python 3.10/3.13 Job 也均成功。该结果不改变任何 Provider 的阶段或默认路由状态。
+P4-02 Provider 安全指标事件和固定 JSON 日志已完成离线实现并接入默认关闭的腾讯 Quote
+Shadow，当前等待 Draft PR 最新 HEAD 的双版本远端门禁，不提前视为完成。
 
 `daily_report_agent` 是一个面向多数据源、证据驱动分析的每日市场信息智能体。当前正式
 链路继续使用既有 DataSource；新的 Provider 能力采用契约化、离线测试和旁路观察逐步
@@ -55,8 +62,9 @@ Tencent QuoteProvider
 | 并行 P1：Eastmoney CN Profile | 阶段性完成 | 离线契约、Provider 骨架和 synthetic 验收入口已完成；真实脱敏 Fixture 未完成 |
 | 并行 P2：Eastmoney CN News | 阶段性完成 | 离线 Transport/Parser/Provider、synthetic 契约测试和存储幂等验证已完成；observed Fixture 未完成 |
 | P4-00：生成物治理 | 已完成 | 删除历史跟踪 bytecode，测试后工作区不再被缓存污染 |
-| P4-01：离线 CI | 远端门禁通过 | 2026-07-26 的运行 `30193535946` 中 Python 3.10/3.13 均为 `407 passed` |
-| 当前开发状态 | P4-01R 验收完成 | 后续 Provider、路由和在线观察仍须另立任务并单独授权 |
+| P4-01：离线 CI | 已合并并复核 | merge `2eeec791…` 后自动与手动运行的 Python 3.10/3.13 Job 均成功 |
+| P4-02：Provider 指标与安全日志 | 远端验收中 | 八字段安全事件、固定 JSON 日志及腾讯 Shadow 最小接入已完成离线实现 |
+| 当前开发状态 | P4-02 远端验收中 | 正式路由、重试、缓存、限流、熔断和新的在线观察仍须另立任务并单独授权 |
 
 ### 当前基线
 
@@ -68,7 +76,7 @@ Tencent QuoteProvider
 282 passed
 
 当前开发分支测试：
-407 passed
+453 passed（Python 3.10.20 / 3.13.9）
 
 已验证 Python 环境：
 Python 3.10.20、Python 3.13.9
@@ -159,6 +167,10 @@ QuoteProvider 已通过正式验收，也不授权进入正式分析、报告、
 - storage 默认关闭，dry-run 即使配置开启也不会创建数据库；
 - 已建立 `QuoteProvider`、`NewsProvider`、`ProfileProvider`、标准 Provider 错误层和
   `LegacyDataSourceFacade`；
+- 已建立只有 `provider_id`、`operation`、`status`、`duration_ms`、`item_count`、
+  `issue_count`、`retry_count`、`error_code` 八个公开字段的安全指标事件，并仅在腾讯
+  Quote Shadow 编排边界最小接入；固定 JSON 日志和失败隔离语义见
+  [`docs/provider_metrics_and_safe_logging.md`](docs/provider_metrics_and_safe_logging.md)；
 - Provider 契约测试完全离线，真实网络能力必须由受控入口显式开启；
 - Provider 迁移边界和字段证据详见
   [`docs/provider_migration.md`](docs/provider_migration.md)；Eastmoney CN Profile 的字段
@@ -485,5 +497,10 @@ Eastmoney Profile 的 synthetic 离线验收以及 Eastmoney News 的 synthetic 
 均为 `407 passed`，工作区无 Python 生成物。GitHub Actions 运行
 [`30193535946`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30193535946)
 已成功创建并通过 Python 3.10 和 3.13 两个 Job，P4-01 已由本地完成升级为远端门禁
-通过。该验收不完成 P1-04，不表示任何 Provider 晋级，也不授权重试 Eastmoney Profile、
-启动新的在线观察或设计、启用腾讯正式路由。
+通过。该提交随后通过 merge commit
+`2eeec791a0494b78359d67dd4e0875e81d138cd7` 进入 `main`；合并后自动运行
+[`30249579799`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30249579799)
+和手动复核运行
+[`30249744777`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30249744777)
+的 Python 3.10/3.13 Job 均成功。该验收不完成 P1-04，不表示任何 Provider 晋级，也不
+授权重试 Eastmoney Profile、启动新的在线观察或设计、启用腾讯正式路由。
