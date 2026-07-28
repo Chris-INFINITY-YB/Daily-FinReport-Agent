@@ -29,6 +29,19 @@ from .eastmoney import (
     EastmoneyProfileProvider,
 )
 from .legacy import LegacyDataSourceFacade, legacy_descriptor
+from .routing import (
+    DataRouteMode,
+    ProviderRegistration,
+    ProviderRegistry,
+    ProviderRuntimeStage,
+    RouteContractError,
+    RouteErrorCode,
+    RoutePolicy,
+    RouteResult,
+    RouteStatus,
+    require_route_mode_enabled,
+    select_route,
+)
 from .tencent import TENCENT_QUOTE_DESCRIPTOR, TencentQuoteProvider
 from .telemetry import (
     ProviderMetricEmitter,
@@ -42,6 +55,7 @@ from .telemetry import (
 __all__ = [
     "CNINFO_PROFILE_DESCRIPTOR",
     "CninfoProfileProvider",
+    "DataRouteMode",
     "EASTMONEY_NEWS_DESCRIPTOR",
     "EASTMONEY_PROFILE_DESCRIPTOR",
     "EastmoneyNewsProvider",
@@ -60,11 +74,19 @@ __all__ = [
     "ProviderNetworkError",
     "ProviderParseError",
     "ProviderRateLimitError",
+    "ProviderRegistration",
+    "ProviderRegistry",
     "ProviderResult",
+    "ProviderRuntimeStage",
     "ProviderTimeoutError",
     "ProviderUnavailableError",
     "ProviderValidationError",
     "QuoteProvider",
+    "RouteContractError",
+    "RouteErrorCode",
+    "RoutePolicy",
+    "RouteResult",
+    "RouteStatus",
     "TENCENT_QUOTE_DESCRIPTOR",
     "TencentQuoteProvider",
     "legacy_descriptor",
@@ -75,4 +97,6 @@ __all__ = [
     "normalize_provider_id",
     "normalize_provider_operation",
     "provider_error_to_issue",
+    "require_route_mode_enabled",
+    "select_route",
 ]

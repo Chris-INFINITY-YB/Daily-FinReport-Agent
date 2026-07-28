@@ -11,6 +11,18 @@
 
 ### Added
 
+- 新增 M1-01 Provider 正式路由纯离线基础：
+  - 封闭 `legacy/provider_shadow/provider_primary` 模式，旧配置缺失时仍默认为
+    `legacy`；
+  - 独立 `ProviderRegistry` 以 provider ID、capability、market、priority、enabled 和
+    runtime stage 注册、校验和确定性查询；
+  - 不可变 `RoutePolicy`、泛型 `RouteResult`、封闭终态/安全错误码和无 I/O
+    `select_route()`；
+  - `offline_only` 不可进入生产选择，Shadow/Production 候选精确隔离，disabled 候选
+    不可选；
+  - 新增
+    [`docs/provider_routing_contract.md`](docs/provider_routing_contract.md) 记录阶段门禁、
+    配置、排序、预算、fallback 和未完成边界。
 - 补齐 `ProfileProvider` Protocol 契约测试，固定标准 `Security` 输入、
   `ProviderResult[SecurityProfile]` 返回，以及成功空结果与请求失败的区别。
 - 新增 Eastmoney CN Profile Provider 纯离线骨架：
@@ -86,6 +98,11 @@
 
 ### Changed
 
+- 默认配置新增 `pipeline` 路由段，但 `data_route` 保持 `legacy`；
+  `storage.enabled=false` 和 `providers.tencent_quote.shadow_enabled=false` 保持不变。
+- `provider_shadow/provider_primary` 当前在读取 `.env`、启动存储、调用 Provider/
+  DataSource、构造 LLM 或生成报告前以 `route_stage_not_enabled` 明确失败；不会静默退回
+  legacy 或生成半成品报告。
 - `daily_report_agent.providers` 顶层安全导出 Eastmoney Profile/News 与 CNInfo Profile
   Descriptor/Provider。
 - `pyproject.toml` 的显式 package 列表包含
@@ -118,6 +135,9 @@
 
 ### Security
 
+- M1-01 Registry 构造、注册、查询和选择均为纯内存操作；配置解析不读取额外环境变量、
+  凭据或 Transport。新增测试验证 import、Registry 构造和 legacy dry-run 不加载腾讯
+  在线 Transport。
 - Eastmoney Provider 模块导入和 Provider 构造不会加载 AkShare、pandas、requests 或任何
   在线客户端，也不会创建网络连接。
 - 当前没有默认或生产在线 Transport；Eastmoney Provider 没有正式配置项，也未进入
@@ -147,6 +167,10 @@
 
 ### Validation
 
+- M1-01 新增 `52` 项离线测试；Python 3.10.20 和 Python 3.13.9 完整测试均为
+  `573 passed`。定向范围覆盖三模式、非法类型/字段、Registry 排序与重复注册、
+  capability/market 校验、disabled/stage 隔离、fallback、预算、构造和 Transport
+  导入隔离，并完整回归 Tencent、Eastmoney 和 CNInfo 契约。
 - P1-04A 文档链接、相对路径、证据日期和敏感模式检查通过；Python 3.10.20 与
   Python 3.13.9 完整离线测试均为 `453 passed`，双版本 compileall、普通/固定日期
   dry-run、固定哈希、离线 wheel 构建及双版本临时安装导入均通过。

@@ -19,6 +19,7 @@ from datetime import datetime
 import yaml
 
 from . import analyzer, report
+from .config import parse_provider_routing_settings
 from .datasource.base import get_source, StockData
 from .ingestion.adapters import stockdata_to_analysis_input
 from .models.analysis import AnalysisInput
@@ -28,6 +29,7 @@ from .pipeline.runner import (
     start_run_context,
 )
 from .pipeline.tencent_quote_shadow import maybe_run_tencent_quote_shadow
+from .providers.routing import require_route_mode_enabled
 
 
 DRY_RUN_ANALYSIS = (
@@ -84,12 +86,15 @@ def _section_pct_change(analysis_input: AnalysisInput) -> float | None:
 
 
 def run(config_path: str, do_notify: bool, dry_run: bool):
-    # dry-run 不读取本机 .env，确保测试结果与用户密钥完全隔离。
-    if not dry_run:
-        load_env()
     cfg = load_config(config_path)
     if not isinstance(cfg, dict):
         raise ValueError("配置文件顶层必须是 YAML 映射")
+    route_settings = parse_provider_routing_settings(cfg)
+    # M1-01 只建立离线契约；非 legacy 模式在凭据和其他副作用前明确失败。
+    require_route_mode_enabled(route_settings.mode)
+    # dry-run 不读取本机 .env，确保测试结果与用户密钥完全隔离。
+    if not dry_run:
+        load_env()
     data_cfg = cfg.get("data", {})
     news_days = data_cfg.get("news_days", 7)
     max_news = data_cfg.get("max_news_per_stock", 15)

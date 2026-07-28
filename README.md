@@ -31,6 +31,11 @@ Shadow；实现 HEAD `29233c22155bf6ecf2c5b3ff32c12942cacbfc70` 的 push 运行
 和 pull_request 运行
 [`30252485316`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30252485316)
 均通过 Python 3.10/3.13 全部步骤，P4-02 已完成远端验收。
+从 P1-04B 起，项目冻结 P1-04C、P3 和其他净新增 Provider，当前优先完成可回退的新旧
+链路双跑、正式路由、结构化增量分析、Replay 和七个交易日 Shadow。
+M1-01 已完成纯离线 Provider 路由基础契约：默认模式仍为 `legacy`；
+`provider_shadow/provider_primary` 仅可解析并会在任何 Provider、存储、LLM 或报告动作
+前以 `route_stage_not_enabled` 明确拒绝，尚不可用于生产或 Shadow 双跑。
 
 `daily_report_agent` 是一个面向多数据源、证据驱动分析的每日市场信息智能体。当前正式
 链路继续使用既有 DataSource；新的 Provider 能力采用契约化、离线测试和旁路观察逐步
@@ -80,7 +85,8 @@ Tencent QuoteProvider
 | P4-00：生成物治理 | 已完成 | 删除历史跟踪 bytecode，测试后工作区不再被缓存污染 |
 | P4-01：离线 CI | 已合并并复核 | merge `2eeec791…` 后自动与手动运行的 Python 3.10/3.13 Job 均成功 |
 | P4-02：Provider 指标与安全日志 | 远端门禁通过 | 八字段安全事件、固定 JSON 日志及腾讯 Shadow 最小接入的 push/PR 双版本 CI 均成功 |
-| 当前开发状态 | P4-02 验收完成 | 正式路由、重试、缓存、限流、熔断和新的在线观察仍须另立任务并单独授权 |
+| M1-01：Provider 路由基础契约 | 本地离线实现完成 | 三模式解析、Registry、RoutePolicy/RouteResult 和纯选择逻辑已完成；非 legacy 模式仍由阶段门禁拒绝 |
+| 当前开发状态 | 冻结净新增 Provider，准备主链路迁移 | 优先建设新旧双跑、正式路由、高可用、结构化增量分析、Replay 和七日 Shadow；默认路由未改变 |
 
 ### 当前基线
 
@@ -92,7 +98,10 @@ Tencent QuoteProvider
 282 passed
 
 当前开发分支测试：
-521 passed（Python 3.10.20 / 3.13.9）
+573 passed（Python 3.10.20 / 3.13.9）
+
+P1-04B 开发分支 HEAD：
+ae55b9f2ca674a6744dd30c91e3316f400ce41a2
 
 已验证 Python 环境：
 Python 3.10.20、Python 3.13.9
@@ -188,6 +197,12 @@ QuoteProvider 已通过正式验收，也不授权进入正式分析、报告、
   Quote Shadow 编排边界最小接入；固定 JSON 日志和失败隔离语义见
   [`docs/provider_metrics_and_safe_logging.md`](docs/provider_metrics_and_safe_logging.md)；
 - Provider 契约测试完全离线，真实网络能力必须由受控入口显式开启；
+- M1-01 新增独立的纯内存 `ProviderRegistry`、不可变 `RoutePolicy/RouteResult` 和确定性
+  `select_route()`；注册项按 capability、market、priority、enabled 和 runtime stage
+  隔离，`offline_only` 不可进入生产选择，Shadow 与 Production 候选精确隔离；
+- 正式配置缺失时默认为 `legacy`；另外两种模式当前只完成解析，会在读取凭据和启动任何
+  业务副作用前明确失败，不会静默 fallback。契约和未完成边界见
+  [`docs/provider_routing_contract.md`](docs/provider_routing_contract.md)；
 - Provider 迁移边界和字段证据详见
   [`docs/provider_migration.md`](docs/provider_migration.md)；Eastmoney CN Profile 的字段
   证据和在线边界详见
