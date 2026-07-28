@@ -40,7 +40,9 @@ M1-02 已在该契约上增加仅供纯离线内部显式调用的泛型 `Provid
 `RouteAttempt` 和 Fake Fallback 验证。M1-03 进一步增加封闭错误分类、不可变
 `RetryPolicy/RetryAttempt` 和 Provider 内部 Retry 状态机；Retry 与 Fallback 共享同一
 物理调用预算。上述能力都只在 Fake Invoker 下离线验证，没有真实网络等待、重试或
-Fallback，也未接入主链路。
+Fallback，也未接入主链路。M1-04A 新增独立的纯离线 Circuit Breaker 转换内核，以
+`provider_id + operation` 隔离 CLOSED/OPEN/HALF_OPEN 状态、显式时间窗口和单探针
+占用；它尚未接入 Router、SQLite 或任何 Provider 调用，不具备跨进程安全。
 
 `daily_report_agent` 是一个面向多数据源、证据驱动分析的每日市场信息智能体。当前正式
 链路继续使用既有 DataSource；新的 Provider 能力采用契约化、离线测试和旁路观察逐步
@@ -93,6 +95,7 @@ Tencent QuoteProvider
 | M1-01：Provider 路由基础契约 | 本地离线实现完成 | 三模式解析、Registry、RoutePolicy/RouteResult 和纯选择逻辑已完成；非 legacy 模式仍由阶段门禁拒绝 |
 | M1-02：纯离线 ProviderRouter | 本地离线实现完成 | 串行状态机、RouteAttempt、总调用预算及 Fake Fallback 已完成；没有生产编排或网络调用 |
 | M1-03：纯离线 Retry 状态机 | 本地离线实现完成 | 类型驱动错误分类、Provider 内 RetryAttempt 轨迹和统一物理调用预算已完成；没有 sleep、网络 Retry 或主链路接入 |
+| M1-04A：纯离线 Circuit Breaker | 本地离线实现完成 | 不可变状态快照、显式时间转换、安全错误映射和单探针契约已完成；没有 Router 集成、持久化或跨进程原子性 |
 | 当前开发状态 | 冻结净新增 Provider，准备主链路迁移 | 优先建设新旧双跑、正式路由、高可用、结构化增量分析、Replay 和七日 Shadow；默认路由未改变 |
 
 ### 当前基线
@@ -105,7 +108,7 @@ Tencent QuoteProvider
 282 passed
 
 当前开发分支测试：
-656 passed（Python 3.10.20 / 3.13.9）
+743 passed（Python 3.10.20 / 3.13.9）
 
 P1-04B 开发分支 HEAD：
 ae55b9f2ca674a6744dd30c91e3316f400ce41a2

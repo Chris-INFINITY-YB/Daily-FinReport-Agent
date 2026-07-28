@@ -11,6 +11,16 @@
 
 ### Added
 
+- 新增 M1-04A 纯离线 Circuit Breaker 状态机：
+  - 以安全规范化的 `provider_id + operation` 作为独立熔断粒度；
+  - 不可变 `CircuitBreakerPolicy`、`CircuitBreakerSnapshot` 和
+    `CircuitTransition` 固定 CLOSED/OPEN/HALF_OPEN、显式打开窗口与单探针语义；
+  - 所有转换均由调用方传入 timezone-aware `now`，不读取系统时钟、不 sleep、不联网；
+  - 复用 M1-03 `ProviderErrorClass/RetryErrorCode`，将 Provider 失败映射为 counted、
+    immediate-open 或 neutral，不检查异常正文；
+  - 新增
+    [`docs/provider_circuit_breaker_contract.md`](docs/provider_circuit_breaker_contract.md)
+    记录转换表、时间边界和 M1-04B 持久化前置条件。
 - 新增 M1-03 纯离线 Provider Retry 状态机：
   - 封闭 `ProviderErrorClass`、`RetryErrorCode`、`RetryDecision` 和
     `RetryReasonCode`，分类只依赖异常类型，不读取异常正文、URL、Header 或响应；
@@ -155,6 +165,10 @@
 
 ### Security
 
+- M1-04A 快照和转换只保存安全 Provider ID、operation、封闭状态/原因、计数、
+  timezone-aware 时间及 `RetryErrorCode`；不保存异常正文、URL、Header、Cookie、
+  Token、响应或业务数据。模块不读取配置、环境变量、数据库或系统时钟，也未接入
+  ProviderRouter。
 - M1-03 Retry 审计只允许 Provider ID、固定索引、封闭终态、错误码/分类和决策原因；
   不保存 URL、Header、Cookie、Token、原始响应、HTTP 正文、Exception message、证券价格、
   新闻正文、数据库路径或动态字段。没有 sleep、等待、抖动、真实网络 Retry 或隐式状态。
@@ -193,6 +207,10 @@
 
 ### Validation
 
+- M1-04A 新增 `87` 项纯离线 Circuit Breaker 测试；M1-01 至 M1-04A 路由与熔断范围为
+  `222 passed`，Python 3.10.20 和 Python 3.13.9 完整测试均为 `743 passed`。覆盖模型
+  校验、三态转换、显式时间窗口、单探针、错误映射、敏感内容隔离、Router 未接入、
+  legacy 门禁和在线 Transport 导入隔离。
 - M1-03 新增 `50` 项纯离线 Retry 测试；M1-01 + M1-02 + M1-03 路由范围为
   `135 passed`，Python 3.10.20 和 Python 3.13.9 完整测试均为 `656 passed`。覆盖错误
   分类、Retry 成功/耗尽、rate limit/unknown 显式开关、统一预算、Fallback、不可变审计、

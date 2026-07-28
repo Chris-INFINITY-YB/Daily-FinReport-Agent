@@ -210,6 +210,11 @@ Fallback 后必须保留：
 
 熔断粒度为 `provider_id + operation`，避免一个能力失败导致整个 Provider 被禁用。
 
+M1-04A 已完成独立的纯离线前置契约：不可变 CLOSED/OPEN/HALF_OPEN 快照、显式
+timezone-aware 时间转换、默认错误分类映射和单探针占用。该内核尚未接入 Router，
+没有 SQLite、真实 Provider 调用或跨进程原子性。未来 OPEN 检查必须在 Invoker 和调用
+预算扣减前完成；M1-04B 才考虑 SQLite 原子状态持久化。
+
 Cron 每次运行都是新进程，纯内存状态无法跨运行生效。建议在 SQLite 中持久化：
 
 - `state`: `closed/open/half_open`
@@ -513,9 +518,10 @@ Replay 必须满足：
 - [x] 落实 Router 总调用预算、empty/partial Fallback 决策和安全异常终态；
 - [x] M1-03 实现封闭错误分类、RetryPolicy、RouteAttempt 内 RetryAttempt 状态机；
 - [x] Retry 与 Fallback 共享物理 Invoker 调用预算，预算在每次进入 Invoker 前扣减；
+- [x] M1-04A 实现纯离线 Circuit Breaker 三态转换、显式时间和单探针契约；
 - [ ] 将 Router 接入正式/Shadow 编排；
 - [ ] 实现真实网络等待/Retry、退避调度和在线 Fallback；
-- [ ] 实现持久化 Circuit Breaker；
+- [ ] M1-04B 实现 SQLite 原子 Circuit Breaker 持久化和跨进程探针预留；
 - [ ] 实现限流、缓存 freshness 和审计事件；
 - [x] 使用纯离线 Fake Invoker/Result 覆盖 Router 状态转换；
 - [x] 默认仍为 `legacy`，另外两种模式在业务副作用前明确拒绝。
