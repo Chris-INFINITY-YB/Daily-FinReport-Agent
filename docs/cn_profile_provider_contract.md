@@ -213,7 +213,20 @@ status `502`、Content-Type `text/html` 和随后发生的 `JSONDecodeError` 是
 纯离线评估替代来源或替代 Transport，并重新建立来源、字段和安全边界；不得发起第四次
 相同请求。
 
-### 3.8 P1-05 显式离线验收入口
+### 3.8 P1-04A 替代来源静态评估
+
+2026-07-27 已完成纯离线 P1-04A，完整证据和 Proposed 决策见
+[`cn_profile_source_alternatives.md`](cn_profile_source_alternatives.md)。评估比较了
+Eastmoney 同源替代边界、上交所、深交所、北交所、CNInfo、Tushare Pro 和 Xueqiu；
+建议等待用户批准后，以新 Provider ID `cninfo` 开展 P1-04B 离线契约与 synthetic
+Fixture，而不是把不同来源包装成 Eastmoney Transport。
+
+该建议不改变本契约的任何字段门禁：没有调用候选 Provider 数据 API，没有创建
+observed Fixture，也没有验证 CNInfo 内部接口的自动化稳定性或 Fixture 保存许可。
+P1-04 继续未完成，`name`、`industry` 继续为 E1，`exchange`、`currency`、
+`description` 继续没有可采纳的真实响应证据。
+
+### 3.9 P1-05 显式离线验收入口
 
 完成日期：2026-07-18
 
