@@ -29,6 +29,13 @@
   - 退出码 `0` 表示 Provider 成功，`1` 表示 Provider/Parser 或内部失败，`2` 表示输入拒绝。
 - 新增 `tests/fixtures/providers/eastmoney/profile_synthetic_minimal.json` 及目录说明。该样本
   明确为人工构造的 synthetic Fixture，不包含真实响应或动态行情值。
+- 新增 P1-04B CNInfo CN Profile 纯离线骨架：
+  - 稳定 Provider ID `cninfo`，能力仅 `PROFILE`、市场仅 `cn`、版本为 `None`；
+  - 同步只读零/一行宽表 Transport Protocol、纯 Parser 和显式依赖注入 Provider；
+  - `A股代码` 身份一致/缺失/冲突边界，`A股简称`/`所属行业` 缺失语义，以及标准
+    timeout、network、rate-limit、blocked、unavailable 安全错误映射；
+  - 单行 `profile_synthetic_minimal.json` 只含 `000000` 与 `SYNTHETIC_*` 占位值，
+    明确不是 observed Fixture 或真实响应副本。
 - 新增 CN Profile 字段契约与证据边界文档
   [`docs/cn_profile_provider_contract.md`](docs/cn_profile_provider_contract.md)，并建立 B4
   观察期间的并行开发计划
@@ -72,16 +79,17 @@
 
 ### Changed
 
-- `daily_report_agent.providers` 顶层安全导出 Eastmoney Profile/News Descriptor、
-  `EastmoneyProfileProvider` 和 `EastmoneyNewsProvider`。
-- `pyproject.toml` 的显式 package 列表加入
-  `daily_report_agent.providers.eastmoney`，并增加安装包导入回归测试。
+- `daily_report_agent.providers` 顶层安全导出 Eastmoney Profile/News 与 CNInfo Profile
+  Descriptor/Provider。
+- `pyproject.toml` 的显式 package 列表包含
+  `daily_report_agent.providers.eastmoney` 和 `daily_report_agent.providers.cninfo`，
+  并增加安装包导入回归测试。
 - 开发准备状态完成校准：P0 分支隔离、离线验证和持续变更边界检查机制均已建立；这些
   门禁仍须在后续每次提交持续执行。
 - README 更新当前节点、Eastmoney Profile/News 离线能力、synthetic 验收命令、项目路径、
   安装/验证命令和当前开发分支测试基线。
-- 路线图将 P1-04A 标记为“静态评估完成、推荐待批准”，并明确 P1-04B 只有在用户批准
-  `cninfo` Provider ID 后才能开始；P1-04、P2-04 和 P3 状态均未改变。
+- 路线图将 P1-04A 标记为“决策已接受”、P1-04B 标记为“离线骨架完成”；P1-04、
+  P2-04 和 P3 状态均未改变。
 - 腾讯 Shadow 汇总 `main()` 支持注入 timezone-aware clock；CLI 默认仍使用当前 UTC，
   测试使用固定时间，从而消除固定 2026-07-14 Fixture 随系统日期移出 7 日窗口的问题。
   naive 或非 datetime clock 会被安全拒绝，7 日窗口和原有汇总兼容断言保持不变。
@@ -122,6 +130,9 @@
 - P1-04A 只读取官方公开文档、本机包元数据和静态源码；没有调用 Eastmoney、CNInfo、
   交易所、Tushare、Xueqiu 或其他 Provider 数据接口，没有创建 Fixture、Provider 或
   在线 Transport。
+- P1-04B 的导入、构造、Parser、Provider、Fixture 和测试完全离线；没有调用任何
+  Provider 数据 API，没有 AkShare/pandas/在线客户端、observed Fixture、在线 Transport、
+  生产配置、路由、持久化或主动日志。
 
 ### Validation
 
@@ -132,7 +143,12 @@
   `4c5de25767c404edc637879e67156ccb2eafeb4e0a99899097823fa144abd416`；
   `storage.enabled=false`、`providers.tencent_quote.shadow_enabled=false`，项目内生成物
   检查为 0。
-- 当前完整离线测试：Python 3.10.20 和 Python 3.13.9 均为 `453 passed`。
+- P1-04B CNInfo 定向测试 `67 passed`；Provider Protocol/contracts/errors
+  `43 passed`；安装包导出 `3 passed`；Eastmoney Profile 回归 `29 passed`。
+- 当前完整离线测试：Python 3.10.20 和 Python 3.13.9 均为 `521 passed`。
+- P1-04B 双版本 compileall、普通/固定日期 dry-run、Prompt 与固定 dry-run 哈希复算、
+  `PIP_NO_INDEX=1` 离线 wheel 构建、双版本临时安装及 CNInfo 导入均通过；wheel
+  SHA-256 为 `ca13464eba4acd5450bbad3285da02be728ac4ee4739bd894637dfd5a0d627dc`。
 - P4-02 定向离线测试：指标契约 `31 passed`，腾讯 Shadow `34 passed`，
   Provider contracts/errors `33 passed`，ProviderCall Repository `9 passed`。
 - Python 3.10/3.13 `compileall` 均通过且缓存输出位于项目外；普通 dry-run、Prompt
@@ -166,6 +182,8 @@
 
 - P1-04 仍未完成：当前没有根据真实 Eastmoney 响应制作的最小脱敏 observed Fixture，
   `name` 和 `industry` 的上游字段证据仍为 E1，不能升级到 E3。
+- CNInfo 当前只有静态候选列与 synthetic Fixture 契约，没有 observed Fixture、自动化
+  访问或最小脱敏保存许可证明，也没有在线可用性证据；P1-04C 前须先确认许可并另获授权。
 - 2026-07-18 的一次受控资料请求在本地 `r.json()` 解析边界失败；调用次数为 `1`、自动
   重试为 `0`，未保存原始响应，也未创建 observed Fixture。该结果不能证明限流、拦截、
   接口失效、字段变化或客户端缺陷。
@@ -174,8 +192,8 @@
   observed Fixture。它不是 2026-07-18 调用的重试，未来观察仍须重新单独授权。
 - 2026-07-27 的第三次独立受控观察返回 HTTP `502`、Content-Type `text/html`，
   redirect `0`，随后在相同 `r.json()` 边界发生 `JSONDecodeError`；相同入口停止后续
-  在线尝试。P1-04A 的 `cninfo` 建议仍为 Proposed，内部 Web API 自动化和脱敏 Fixture
-  保存边界尚未获批准。
+  在线尝试。P1-04A 的 `cninfo` 架构已获批准并完成 P1-04B 离线骨架，但内部 Web API
+  自动化和脱敏 Fixture 保存边界尚未获批准。
 - synthetic Fixture 只验证离线调用链，不证明真实 `item/value` 响应结构或线上可用性。
 - Eastmoney Profile Provider 不能被声明为在线可用，也不能进入正式 DataSource 路由。
 - P2-04 仍未完成：Eastmoney News 当前只有 N2 静态证据和 synthetic Fixture，没有最小

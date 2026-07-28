@@ -1,7 +1,7 @@
 # CN Profile Provider 字段契约与证据边界
 
-更新时间：2026-07-27
-状态：P1-03/P1-05 离线能力已完成；P1-04 仍未完成，无在线 Transport，尚无 CN Profile 脱敏 Fixture
+更新时间：2026-07-28
+状态：P1-04B CNInfo 离线骨架已完成；P1-04 仍未完成，无在线 Transport 或 observed Fixture
 
 本文只固定 CN Profile Provider 的身份、字段、结果和证据门禁。它不改变现有
 [`CNDataSource`](../daily_report_agent/datasource/cn.py)，也不授权网络请求、生产接入或
@@ -17,9 +17,9 @@
 | E2：上游字段假设 | 根据函数名、常识或未保存的印象提出的候选字段 | 不可以，必须返回 `None` 或拒绝映射 |
 | E3：脱敏 Fixture 证据 | P1-04 用受控真实响应制作并经测试固定的脱敏样本 | 可以，且仍须满足身份和缺失值规则 |
 
-当前没有 CN Profile Fixture，因此上游字段最高只有 E1。E1 不能升级为可信映射；P1-04
-必须用脱敏 Fixture 固定响应结构、字段名、值类型和缺失形态后，字段才可进入 E3。
-P1-03A 只确认原始来源归属，不提高任何响应字段的证据等级。
+当前只有人工构造的 synthetic CN Profile Fixture，没有 observed Fixture。Eastmoney
+上游字段最高仍为 E1；CNInfo 候选字段只有静态/synthetic 契约证据。二者都不能升级为
+可信映射或 E3。P1-03A 只确认 Eastmoney 原始来源归属，不提高任何响应字段的证据等级。
 
 ## 2. 旧 CNDataSource 的已知边界
 
@@ -215,18 +215,66 @@ status `502`、Content-Type `text/html` 和随后发生的 `JSONDecodeError` 是
 
 ### 3.8 P1-04A 替代来源静态评估
 
-2026-07-27 已完成纯离线 P1-04A，完整证据和 Proposed 决策见
+2026-07-27 已完成纯离线 P1-04A，完整证据和当时的 Proposed 决策见
 [`cn_profile_source_alternatives.md`](cn_profile_source_alternatives.md)。评估比较了
 Eastmoney 同源替代边界、上交所、深交所、北交所、CNInfo、Tushare Pro 和 Xueqiu；
 建议等待用户批准后，以新 Provider ID `cninfo` 开展 P1-04B 离线契约与 synthetic
-Fixture，而不是把不同来源包装成 Eastmoney Transport。
+Fixture，而不是把不同来源包装成 Eastmoney Transport；该架构已于 2026-07-28 获批并
+由 P1-04B 纯离线落实。
 
 该建议不改变本契约的任何字段门禁：没有调用候选 Provider 数据 API，没有创建
 observed Fixture，也没有验证 CNInfo 内部接口的自动化稳定性或 Fixture 保存许可。
 P1-04 继续未完成，`name`、`industry` 继续为 E1，`exchange`、`currency`、
 `description` 继续没有可采纳的真实响应证据。
 
-### 3.9 P1-05 显式离线验收入口
+### 3.9 P1-04B CNInfo 离线骨架
+
+完成日期：2026-07-28
+
+用户已批准独立稳定 Provider ID `cninfo`，并完成以下纯离线契约：
+
+```text
+provider_id: cninfo
+display_name: CNInfo
+capabilities: {profile}
+markets: {cn}
+version: None
+supported_news_types: {}
+```
+
+- [`transport.py`](../daily_report_agent/providers/cninfo/transport.py) 只定义同步只读
+  `CninfoProfileTransport`：输入规范化六位 ASCII CN 代码，输出
+  `tuple[Mapping[str, object], ...]`；没有默认或在线实现；
+- [`parser.py`](../daily_report_agent/providers/cninfo/parser.py) 只消费不可变的零/一行
+  宽表。零行是带 `profile_not_found` 的成功空结果，多行、非 Mapping、非法顶层/列结构
+  是安全 `ProviderParseError`；
+- `A股代码` 只用于与请求 symbol 交叉验证：一致时不覆盖请求身份，缺失时产生
+  `profile_identity_unverified`，非法类型/格式或冲突时安全拒绝；
+- `name` 只取 `A股简称`，`industry` 只取 `所属行业`。只有 trim 后非空字符串可进入
+  synthetic 测试模型；缺失、null、空白、非字符串和明确 `SYNTHETIC_*` 空值占位符
+  均按 `None` 处理；
+- `所属市场` 不覆盖请求 `market`，也不映射 `exchange`；未知额外列安全忽略。
+  `exchange`、`currency`、`description` 始终为 `None`，自由文本和动态字段不读取；
+- [`profile.py`](../daily_report_agent/providers/cninfo/profile.py) 要求显式 Transport，
+  构造不调用它；每次 `fetch_profile()` 最多调用一次，使用 aware UTC clock，并把
+  timeout、network、rate-limit、blocked、unavailable 映射为标准安全错误；
+- `SecurityProfile.source` 固定为 `cninfo`。CNInfo 行不会进入 Eastmoney Parser，
+  两套离线骨架并存且都没有生产路由优先级。
+
+唯一 CNInfo Fixture 是
+[`profile_synthetic_minimal.json`](../tests/fixtures/providers/cninfo/profile_synthetic_minimal.json)：
+它只有一行和候选列 `A股代码`、`A股简称`、`所属市场`、`所属行业`，值为 `000000` 与
+明显的 `SYNTHETIC_*` 占位符。它不是 observed Fixture 或真实响应副本，不证明线上结构、
+字段类型、空值形态、许可或在线可用性，不把 CNInfo 候选字段或 Eastmoney 的
+`name`/`industry` 提升到 E3。
+
+P1-04B 没有调用任何 Provider 数据 API，没有导入或执行 AkShare/pandas，没有实现在线
+Transport，也没有修改 `CNDataSource`、配置、Pipeline、Analyzer、Prompt、Report、
+通知、数据库、腾讯 Quote Shadow 或正式路由。P1-04 总项继续未完成，P2-04 和 P3 状态
+不变。下一门禁是 P1-04C：必须先确认自动化访问与最小脱敏 Fixture 保存许可，再取得
+单独受控在线授权；本节不表示上述许可已获得。
+
+### 3.10 P1-05 显式离线验收入口
 
 完成日期：2026-07-18
 

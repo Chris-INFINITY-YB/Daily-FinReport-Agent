@@ -1,11 +1,12 @@
 # daily_report_agent 开发进度
 
-更新时间：2026-07-27
+更新时间：2026-07-28
 当前节点：阶段 2-B4 五日证据、合并候选完整离线回归及同候选受控在线验证均已通过；
 腾讯仍是默认关闭的 Shadow Provider，未进入正式或备用行情路由。并行 P1 的 Eastmoney
 CN Profile 离线骨架和验收入口已完成，但三次独立受控观察均在 `r.json()` 边界失败，
-没有形成 observed Fixture；P1-04A 已完成替代来源静态评估，Proposed 建议建立独立
-`cninfo` Profile Provider，等待用户批准且未实现。并行 P2 的 Eastmoney CN News
+没有形成 observed Fixture；P1-04A 的 `cninfo` 架构建议已获批准，P1-04B 已完成独立
+CNInfo Profile 纯离线骨架与 synthetic Fixture，但没有在线 Transport 或生产接入。
+并行 P2 的 Eastmoney CN News
 离线 Provider、synthetic 契约测试和存储幂等验证已完成，observed Fixture 仍待补充。
 P4-00 生成物治理和 P4-01
 离线 CI 基线已完成；P4-01R 在提交 `b7fa7386b211579aaa1999f415acc9da07436119`
@@ -66,7 +67,8 @@ Tencent QuoteProvider
 | 阶段 2-B3-B3：单次受控真实观测 | 已完成 | 固定 3 个证券完成一次真实请求和只读验收 |
 | 阶段 2-B4：连续人工观察 | 验收及候选门禁通过 | 五日证据、候选离线回归和 2026-07-25 同候选在线验证均通过 |
 | 并行 P1：Eastmoney CN Profile | 阶段性完成 | 离线契约、Provider 骨架和 synthetic 验收入口已完成；真实脱敏 Fixture 未完成 |
-| P1-04A：CN Profile 替代来源评估 | 静态评估完成、推荐待批准 | Proposed 建议建立独立 `cninfo` Provider；未实现、未在线验证、未晋级 |
+| P1-04A：CN Profile 替代来源评估 | 决策已接受 | `cninfo` 独立来源架构已获批准；不等于在线或许可批准 |
+| P1-04B：CNInfo CN Profile | 离线骨架完成 | 独立零/一行宽表契约、synthetic Fixture、错误隔离与安装包导出已完成；P1-04 未完成 |
 | 并行 P2：Eastmoney CN News | 阶段性完成 | 离线 Transport/Parser/Provider、synthetic 契约测试和存储幂等验证已完成；observed Fixture 未完成 |
 | P4-00：生成物治理 | 已完成 | 删除历史跟踪 bytecode，测试后工作区不再被缓存污染 |
 | P4-01：离线 CI | 已合并并复核 | merge `2eeec791…` 后自动与手动运行的 Python 3.10/3.13 Job 均成功 |
@@ -83,7 +85,7 @@ Tencent QuoteProvider
 282 passed
 
 当前开发分支测试：
-453 passed（Python 3.10.20 / 3.13.9）
+521 passed（Python 3.10.20 / 3.13.9）
 
 已验证 Python 环境：
 Python 3.10.20、Python 3.13.9
@@ -239,18 +241,30 @@ E1 提升到 E3。2026-07-18、2026-07-25 和 2026-07-27 三次独立受控请�
 `r.json()` 解析边界失败，没有保存原始响应或创建 observed Fixture；相同入口不再继续
 在线尝试。因此 Eastmoney Profile 仍不得被声明为在线可用或进入正式路由。
 
-### P1-04A 替代来源静态评估
+### P1-04A/P1-04B：CNInfo 离线契约
 
 P1-04A 已静态比较 Eastmoney 同源替代边界、上交所、深交所、北交所、CNInfo、
-Tushare Pro 和 Xueqiu。结论为 **Proposed**：建议以新 Provider ID `cninfo` 建立独立
-CN Profile 离线契约，与冻结在线方向的 `eastmoney` 骨架并存，而不是把不同原始来源
-包装成 Eastmoney Transport。
+Tushare Pro 和 Xueqiu。用户已接受以新 Provider ID `cninfo` 建立独立 CN Profile
+离线契约，与冻结在线方向的 `eastmoney` 骨架并存，而不是把不同原始来源包装成
+Eastmoney Transport。
 
 该建议只基于官方公开页面、本机 AkShare `1.18.46` 包元数据和静态源码。官方页面存在
-不等于内部接口允许稳定自动化访问，静态字段也不等于 observed Fixture 证据。P1-04B
-只有在用户批准来源与 Provider ID 后才可创建 synthetic 离线契约；在线 Transport、
-observed Fixture 和正式路由仍需后续独立许可与验收。P1-04 保持未完成，`name` 和
-`industry` 保持 E1。
+不等于内部接口允许稳定自动化访问，静态字段也不等于 observed Fixture 证据。
+
+P1-04B 已实现 `CNINFO_PROFILE_DESCRIPTOR`、同步只读 `CninfoProfileTransport`、
+纯 `parse_cninfo_profile_rows()` 和显式依赖注入的 `CninfoProfileProvider`：
+
+- Transport 输入规范化六位 ASCII CN 代码，输出不可变零/一行宽表；没有默认或在线实现；
+- `A股代码` 只做请求身份交叉验证，缺失产生安全 Issue，非法或冲突安全拒绝；
+- `name`/`industry` 只取静态候选 `A股简称`/`所属行业`；`所属市场` 不覆盖请求市场；
+- `exchange`、`currency`、`description` 始终为 `None`，未知列和动态/自由文本字段不映射；
+- 单行 `profile_synthetic_minimal.json` 仅包含 `000000` 和 `SYNTHETIC_*` 占位值，
+  不是 observed Fixture、真实响应副本或 E3 证据；
+- CNInfo 子包已加入 wheel 和顶层安全导出，但没有配置、生产路由或 Provider 优先级。
+
+P1-04 保持未完成；Eastmoney `name`/`industry` 仍为 E1，CNInfo 候选字段只有
+静态/synthetic 证据。下一门禁 P1-04C 必须先确认自动化访问与最小脱敏 Fixture 保存
+许可，再取得单独在线授权。
 
 ## Eastmoney CN News Provider（离线）
 
@@ -476,8 +490,7 @@ QuoteProvider 的验收门禁。
 
 1. 上传当前本地提交并验证 Python 3.10/3.13 GitHub Actions 离线 CI；
 2. 停止对 `stock_individual_info_em` 相同入口继续在线尝试 Eastmoney Profile；
-   P1-04A 静态评估已完成，等待用户决定是否启动只做离线契约和 synthetic Fixture 的
-   `P1-04B：CNInfo CN Profile 离线 Provider 契约与 synthetic Fixture`；
+   P1-04B CNInfo 纯离线骨架已完成；P1-04C 必须先确认许可，再另行申请受控在线授权；
 3. 接入至少两个可切换的 A 股公司新闻来源；
 4. 将交易所或巨潮公告建模为独立公告来源；
 5. 接入财联社类市场快讯和其他市场资讯来源；
@@ -499,9 +512,9 @@ python -m compileall -q daily_report_agent scripts tests
 python -m daily_report_agent --dry-run
 ```
 
-Eastmoney Profile 的 synthetic 离线验收以及 Eastmoney News 的 synthetic 契约与存储
-测试只需要基础依赖和测试依赖，不需要安装 `.[online]`，也不需要 API Key 或 Provider
-配置。
+Eastmoney/CNInfo Profile 的 synthetic 离线契约以及 Eastmoney News 的 synthetic 契约
+与存储测试只需要基础依赖和测试依赖，不需要安装 `.[online]`，也不需要 API Key 或
+Provider 配置。
 
 开始下一阶段前应再次确认：
 
