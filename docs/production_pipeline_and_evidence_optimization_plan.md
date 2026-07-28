@@ -179,6 +179,11 @@ Registry 只声明能力，不执行网络请求。每个注册项至少包含�
 
 必须设置总请求预算。单个 Provider 的重试不能无限延长整份日报。
 
+M1-03 已完成本节的纯离线前置契约：类型驱动的封闭错误分类、Provider 内 Retry 状态机、
+不可变物理调用轨迹，以及 Retry/Fallback 共享的全局物理调用预算。当前只使用 Fake
+Invoker 验证确定性转换；没有 sleep、真实退避/抖动、Retry-After、网络 Retry 或在线
+Fallback，因此本节面向生产的等待与调度要求仍未完成。
+
 ### 5.3 Fallback
 
 Fallback 的输入和输出保持标准模型，不允许降级逻辑重新拼接 `StockData.error`。
@@ -506,8 +511,10 @@ Replay 必须满足：
 - [x] 增加 `legacy/provider_shadow/provider_primary` 配置解析与阶段门禁；
 - [x] M1-02 实现可显式调用的纯离线泛型 ProviderRouter、RouteAttempt 和 Fake 状态机；
 - [x] 落实 Router 总调用预算、empty/partial Fallback 决策和安全异常终态；
+- [x] M1-03 实现封闭错误分类、RetryPolicy、RouteAttempt 内 RetryAttempt 状态机；
+- [x] Retry 与 Fallback 共享物理 Invoker 调用预算，预算在每次进入 Invoker 前扣减；
 - [ ] 将 Router 接入正式/Shadow 编排；
-- [ ] 实现错误分类 Retry 和真实网络 Fallback；
+- [ ] 实现真实网络等待/Retry、退避调度和在线 Fallback；
 - [ ] 实现持久化 Circuit Breaker；
 - [ ] 实现限流、缓存 freshness 和审计事件；
 - [x] 使用纯离线 Fake Invoker/Result 覆盖 Router 状态转换；

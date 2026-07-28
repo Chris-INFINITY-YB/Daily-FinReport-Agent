@@ -37,7 +37,10 @@ M1-01 已完成纯离线 Provider 路由基础契约：默认模式仍为 `legac
 `provider_shadow/provider_primary` 仅可解析并会在任何 Provider、存储、LLM 或报告动作
 前以 `route_stage_not_enabled` 明确拒绝，尚不可用于生产或 Shadow 双跑。
 M1-02 已在该契约上增加仅供纯离线内部显式调用的泛型 `ProviderRouter` 状态机、调用预算、
-`RouteAttempt` 和 Fake Fallback 验证；它没有真实 Retry 或网络 Fallback，也未接入主链路。
+`RouteAttempt` 和 Fake Fallback 验证。M1-03 进一步增加封闭错误分类、不可变
+`RetryPolicy/RetryAttempt` 和 Provider 内部 Retry 状态机；Retry 与 Fallback 共享同一
+物理调用预算。上述能力都只在 Fake Invoker 下离线验证，没有真实网络等待、重试或
+Fallback，也未接入主链路。
 
 `daily_report_agent` 是一个面向多数据源、证据驱动分析的每日市场信息智能体。当前正式
 链路继续使用既有 DataSource；新的 Provider 能力采用契约化、离线测试和旁路观察逐步
@@ -89,6 +92,7 @@ Tencent QuoteProvider
 | P4-02：Provider 指标与安全日志 | 远端门禁通过 | 八字段安全事件、固定 JSON 日志及腾讯 Shadow 最小接入的 push/PR 双版本 CI 均成功 |
 | M1-01：Provider 路由基础契约 | 本地离线实现完成 | 三模式解析、Registry、RoutePolicy/RouteResult 和纯选择逻辑已完成；非 legacy 模式仍由阶段门禁拒绝 |
 | M1-02：纯离线 ProviderRouter | 本地离线实现完成 | 串行状态机、RouteAttempt、总调用预算及 Fake Fallback 已完成；没有生产编排或网络调用 |
+| M1-03：纯离线 Retry 状态机 | 本地离线实现完成 | 类型驱动错误分类、Provider 内 RetryAttempt 轨迹和统一物理调用预算已完成；没有 sleep、网络 Retry 或主链路接入 |
 | 当前开发状态 | 冻结净新增 Provider，准备主链路迁移 | 优先建设新旧双跑、正式路由、高可用、结构化增量分析、Replay 和七日 Shadow；默认路由未改变 |
 
 ### 当前基线
@@ -101,7 +105,7 @@ Tencent QuoteProvider
 282 passed
 
 当前开发分支测试：
-606 passed（Python 3.10.20 / 3.13.9）
+656 passed（Python 3.10.20 / 3.13.9）
 
 P1-04B 开发分支 HEAD：
 ae55b9f2ca674a6744dd30c91e3316f400ce41a2
@@ -210,8 +214,17 @@ QuoteProvider 已通过正式验收，也不授权进入正式分析、报告、
   `ResultEvaluation` 和不可变 `RouteAttempt`；Router 只接受显式注入，严格同步串行，
   每个候选最多调用一次，并在进入 Invoker 前消耗总调用预算；
 - Router 只在纯离线 Fake 测试中执行。`success/empty/partial/failed/skipped`、empty 策略、
-  partial evaluator 决策、安全异常映射和 legacy fallback 契约已经固定，但没有业务
-  merger、真实 Retry、网络 Fallback、Circuit Breaker、限流、缓存或正式 Pipeline 接入；
+  partial evaluator 决策、安全异常映射和 legacy fallback 契约已经固定；
+- M1-03 新增封闭 `ProviderErrorClass/RetryErrorCode/RetryDecision/RetryReasonCode`、
+  不可变 `RetryPolicy/RetryAttempt` 以及纯函数 `classify_provider_error()/decide_retry()`；
+  每个候选仍只有一个 `RouteAttempt`，每次物理 Invoker 调用在其中形成一个
+  `RetryAttempt`，Provider Retry 与候选 Fallback 共用 `max_call_budget`；
+- 默认 `max_attempts_per_provider=1`，普通未知异常和 rate limit 默认不重试；
+  timeout、临时 network 和 unavailable 只有在策略允许、Provider 次数和全局预算均有
+  余量时才离线重试。empty/partial 继续只由 M1-02 evaluator/fallback 契约处理，不会
+  自动重复调用同一 Provider；
+- 当前没有业务 merger、真实网络等待或 Retry、网络 Fallback、Circuit Breaker、限流、
+  缓存或正式 Pipeline 接入；`provider_shadow/provider_primary` 仍在副作用前拒绝；
 - Provider 迁移边界和字段证据详见
   [`docs/provider_migration.md`](docs/provider_migration.md)；Eastmoney CN Profile 的字段
   证据和在线边界详见

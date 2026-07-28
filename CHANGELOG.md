@@ -11,6 +11,17 @@
 
 ### Added
 
+- 新增 M1-03 纯离线 Provider Retry 状态机：
+  - 封闭 `ProviderErrorClass`、`RetryErrorCode`、`RetryDecision` 和
+    `RetryReasonCode`，分类只依赖异常类型，不读取异常正文、URL、Header 或响应；
+  - 不可变 `RetryPolicy` 默认 `max_attempts_per_provider=1`，保持 M1-02 行为；
+    rate limit 和普通未知异常默认不重试，只有显式策略才允许；
+  - 每个候选仍只产生一个 `RouteAttempt`，其中每次物理 Invoker 调用形成一个不可变
+    `RetryAttempt`，Provider 内序号和全局调用序号均严格递增；
+  - Retry、Fallback Provider 首次调用和后续 Retry 共用唯一物理调用预算，进入 Invoker
+    前扣减；skipped、evaluator 和纯分类不消耗预算；
+  - empty/partial 不触发传输 Retry，继续沿用 M1-02 的 evaluator 与 Fallback 契约；
+    evaluator、非法结果和协议失败不重试。
 - 新增 M1-02 纯离线通用 `ProviderRouter[T]` 状态机：
   - 只接受显式注入的 Registry、RoutePolicy、同步 Invoker 和纯 ResultEvaluator；
   - 封闭 `success/empty/partial/failed/skipped` 终态与不可变 `RouteAttempt`；
@@ -144,6 +155,9 @@
 
 ### Security
 
+- M1-03 Retry 审计只允许 Provider ID、固定索引、封闭终态、错误码/分类和决策原因；
+  不保存 URL、Header、Cookie、Token、原始响应、HTTP 正文、Exception message、证券价格、
+  新闻正文、数据库路径或动态字段。没有 sleep、等待、抖动、真实网络 Retry 或隐式状态。
 - M1-02 Router 构造不调用 Invoker，不读取配置、`.env`、环境变量、凭据、数据库或文件，
   也不导入在线 Transport；普通异常和 evaluator 异常正文不会进入 RouteAttempt 或
   RouteResult。
@@ -179,6 +193,10 @@
 
 ### Validation
 
+- M1-03 新增 `50` 项纯离线 Retry 测试；M1-01 + M1-02 + M1-03 路由范围为
+  `135 passed`，Python 3.10.20 和 Python 3.13.9 完整测试均为 `656 passed`。覆盖错误
+  分类、Retry 成功/耗尽、rate limit/unknown 显式开关、统一预算、Fallback、不可变审计、
+  异常正文隔离、终止信号、legacy 和在线 Transport 导入门禁。
 - M1-02 新增 `33` 项纯离线 Fake Router 测试；M1-01 + M1-02 路由范围为 `85 passed`，
   Python 3.10.20 和 Python 3.13.9 完整测试均为 `606 passed`。覆盖五种终态、停止与
   Fallback、预算耗尽、skipped、阶段隔离、异常安全、不可变性和导入/构造隔离。
