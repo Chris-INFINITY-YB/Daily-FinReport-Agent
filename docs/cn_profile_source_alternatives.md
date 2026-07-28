@@ -1,8 +1,8 @@
 # CN Profile 替代来源与 Transport 静态可行性评估
 
-状态：**Proposed — P1-04A 静态评估完成，推荐待用户批准**
+状态：**Accepted — `cninfo` 架构已批准，P1-04B 离线骨架已完成**
 
-评估日期：2026-07-27
+评估日期：2026-07-27；决策落实日期：2026-07-28
 评估基线：`origin/main` `519fb61df91c5969164bacb8f42ddbb57c3d1642`
 
 ## 1. 背景与决策问题
@@ -11,9 +11,10 @@
 AkShare 只是候选调用库。P1-04R、P1-04R2、P1-04R3 三次分别授权的受控观察均未形成
 可供 Parser 使用的真实行记录，因此没有 observed Fixture，`name`、`industry` 仍为 E1。
 
-本 ADR 只回答一个静态架构问题：下一步应为 Eastmoney 建立有独立证据的新响应契约，
-建立新的原始来源 Provider，还是暂停 P1-04。它没有实现 Provider 或 Transport，没有
-调用任何候选数据 API，也没有改变正式路由或字段证据等级。
+本 ADR 的静态评估回答下一步应为 Eastmoney 建立有独立证据的新响应契约、建立新的
+原始来源 Provider，还是暂停 P1-04。用户随后批准 `cninfo` 架构，P1-04B 已按本 ADR
+建立纯离线 Provider 契约；仍没有调用候选数据 API、在线 Transport、生产路由或字段
+证据升级。
 
 ## 2. 已知事实与不能据此推出的结论
 
@@ -213,7 +214,7 @@ AkShare 只是候选调用库。P1-04R、P1-04R2、P1-04R3 三次分别授权的
 | 上交所列表 | JSON 列表静态可审计 | 公开页面无登录 | 非商业浏览下载可行；再分发仍需审查 | 列表较稳，但缺行业 | 不需要 | 可用 synthetic/fixture transport | 单次列表观察只保留代码、简称、类型 | 新 `sse` Provider；身份层候选 |
 | 深交所列表 | Excel 列表静态可审计 | 公开页面无登录 | 非商业浏览下载可行；再分发仍需审查 | 下载格式和行业口径可能变化 | Excel 解析已有间接能力但不应提前新增 | 可保持 | 单次下载，只保留字段名/类型/脱敏行 | 新 `szse` Provider；分市场候选 |
 | 北交所列表 | POST + 分页，静态复杂度最高 | 公开页面无登录 | 明确 Fixture 再分发许可未找到 | 分页、两请求和代码切换风险高 | 不需要 | 可保持 | 需先固定新旧代码和分页上限，再受控观察 | 新 `bse` Provider；身份层候选 |
-| CNInfo 公司资料 | 单证券 JSON 后整形成零/一行宽表，静态可审计 | 公开页无登录；Web API 许可/付费状态未确认 | 公开浏览不构成内部 API 或 Fixture 再分发授权，两者均待确认 | 内部边界无稳定承诺、访问校验、无显式 timeout | P1-04B 不新增；未来直接 Transport 另审 | 导入、构造、测试、dry-run 均可纯离线 | 获批后单证券、单请求、无重试；只留代码/简称/市场/行业的字段名、类型和脱敏值 | 建立新 `cninfo` Provider 与 Eastmoney 并存；**Proposed** |
+| CNInfo 公司资料 | 单证券 JSON 后整形成零/一行宽表，静态可审计 | 公开页无登录；Web API 许可/付费状态未确认 | 公开浏览不构成内部 API 或 Fixture 再分发授权，两者均待确认 | 内部边界无稳定承诺、访问校验、无显式 timeout | P1-04B 未新增；未来直接 Transport 另审 | 导入、构造、测试、dry-run 均可纯离线 | 获批后单证券、单请求、无重试；只留代码/简称/市场/行业的字段名、类型和脱敏值 | 新 `cninfo` Provider 与 Eastmoney 并存；**离线架构已接受并落实** |
 | Tushare Pro | 文档化 JSON/API | 注册、Token、积分/可能付费 | 个人不可转让非商业许可；仓库 Fixture 风险高 | 配额、权限和服务期变化 | 需要 Tushare SDK 或直接客户端 | 单测可离线，贡献者不能在线复现 | 只有取得账号与再分发批准后才可设计 | 新 `tushare` Provider；暂停 |
 | Xueqiu | 单证券 JSON 静态候选 | Token/登录态 | 协议明确限制爬虫和原始数据获取 | 凭据和访问保护变化风险高 | 不应新增 | 单测可离线但无法合法建立证据 | 不设计 | 废弃候选 |
 
@@ -226,8 +227,8 @@ issue 计数和安全错误码；不得记录证券、URL、查询参数、Heade
 
 **结论：推荐建立新的原始来源 Provider，与 Eastmoney 并存或替代。**
 
-推荐将 CNInfo 作为 `cninfo` Profile Provider 的下一阶段离线契约候选，状态保持
-**Proposed**，等待用户架构批准。理由是：
+CNInfo 已被接受为稳定 ID 为 `cninfo` 的独立 Profile Provider；P1-04B 仅落实离线契约。
+接受理由是：
 
 1. 原始发布身份与 Eastmoney 明确不同，不能也无需借用 `eastmoney` ID；
 2. 单一公司资料形态静态覆盖简称、行业、市场和证券代码候选，避免当前就引入三交易所
@@ -277,9 +278,9 @@ Eastmoney 请求。
   证据；不得保留公司名称、行业真实值、简介正文、动态数据、URL、请求参数或凭据。
 - observed Fixture 入库前必须确认自动化访问与最小脱敏再分发边界；没有确认就不观察。
 
-## 8. 后续任务：P1-04B（不在本次执行）
+## 8. P1-04B 落实状态
 
-建议任务名：
+已完成任务：
 
 > **P1-04B：CNInfo CN Profile 离线 Provider 契约与 synthetic Fixture**
 
@@ -293,23 +294,29 @@ Eastmoney 请求。
 - 不实现在线 Transport，不导入/执行 AkShare，不修改正式 DataSource、配置、路由、
   Analyzer、Prompt、Report、通知、数据库或 Eastmoney 资产。
 
-预计修改文件：
+已实现文件：
 
 - `daily_report_agent/providers/cninfo/__init__.py`
 - `daily_report_agent/providers/cninfo/constants.py`
 - `daily_report_agent/providers/cninfo/transport.py`
 - `daily_report_agent/providers/cninfo/parser.py`
 - `daily_report_agent/providers/cninfo/profile.py`
-- `tests/unit/providers/test_cninfo_profile_provider.py`
+- `tests/unit/providers/cninfo/`
 - `tests/fixtures/providers/cninfo/profile_synthetic_minimal.json`
 - `tests/fixtures/providers/cninfo/README.md`
 - `docs/cn_profile_provider_contract.md`
 - `docs/parallel_development_plan.md`
 - 必要时只更新 `pyproject.toml` 的显式包清单和公开安全导出测试。
 
-离线测试至少覆盖：正常、name/industry/market 分别或同时缺失、空结果、缺列、重复 item、
-未知 item、非字符串值、身份一致/缺失/冲突、aware/naive/非法 clock，以及 network、
-timeout、rate-limit、blocked 和通用不可用错误映射。所有异常样本必须标为 synthetic。
+离线测试覆盖正常、name/industry/market 分别或同时缺失、空结果、多行、非法 Mapping/
+列类型、未知列、非字符串值、身份一致/缺失/冲突、aware/naive/非法 clock，以及
+network、timeout、rate-limit、blocked 和通用不可用错误映射。宽表 Mapping 不虚构
+重复 item 语义；所有 Fixture 与异常样本均明确为 synthetic。
+
+P1-04B 只新增 Descriptor、只读 Protocol、纯 Parser、显式注入 Provider、synthetic
+Fixture、测试和文档。它没有实现在线 Transport，没有进入正式 DataSource、配置、路由、
+Analyzer、Prompt、Report、通知或数据库，也没有改变 Eastmoney 骨架。CNInfo 与
+Eastmoney 当前没有主备、降级或正式优先级。
 
 observed 门禁：
 
@@ -321,16 +328,17 @@ observed 门禁：
 5. `name`、`industry` 只有在 observed 契约、身份和空值测试全部通过后才可升级到 E3；
 6. E3、双版本离线门禁、在线安全审查和用户路由批准完成前，禁止进入正式路由。
 
-## 9. 仍需用户决定
+## 9. P1-04C 前仍需确认
 
-用户需要在开始 P1-04B 前明确批准或拒绝：
+用户已经批准 `cninfo` Provider ID、CNInfo 作为下一离线来源以及与 Eastmoney 并存。
+任何 P1-04C 在线观察前仍必须：
 
-1. 是否接受 `cninfo` 作为新的原始来源 Provider ID，而不是 Eastmoney Transport 变体；
-2. 是否接受“CNInfo 优先、交易所列表仅作为未来身份解析/备选”的顺序；
-3. 是否要求在任何在线观察前先取得书面或可引用的 Web API 自动化与脱敏 Fixture
-   保存许可；本 ADR 建议“是”。
+1. 确认内部边界的自动化访问许可；
+2. 确认最小脱敏 observed Fixture 的保存许可；
+3. 另行取得单证券、单调用、单请求、无重试/并发/分页/降级的明确在线授权。
 
-在这些决定之前，P1-04 保持未完成，`name`、`industry` 保持 E1，P2-04 和 P3 状态不变。
+当前并未声明上述许可已经取得。P1-04 保持未完成，Eastmoney `name`、`industry` 保持
+E1，CNInfo 候选字段只有静态/synthetic 证据，P2-04 和 P3 状态不变。
 
 ## 10. 证据索引
 

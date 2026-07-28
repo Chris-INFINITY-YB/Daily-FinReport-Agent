@@ -184,7 +184,7 @@
       停止相同入口的后续在线尝试；下一任务改为离线评估替代来源或替代 Transport，
       不发起第四次相同请求。
   - [x] **P1-04A CN Profile 替代来源或 Transport 静态可行性评估
-    （2026-07-27 已完成，推荐待批准）**
+    （2026-07-27 已完成，2026-07-28 决策获批）**
     - 只读取官方公开页面、本机 AkShare `1.18.46` 包元数据和静态源码；没有调用
       Eastmoney、CNInfo、交易所、Tushare、Xueqiu 或其他 Provider 数据接口；
     - 已评估 Eastmoney 同源替代边界、上交所/深交所/北交所、CNInfo、Tushare Pro 和
@@ -198,17 +198,19 @@
       非商业使用；Xueqiu 条款限制未经授权的自动化抓取，因此均不是当前默认首选；
     - 完整 ADR、证据日期、源码相对路径及 SHA-256 见
       [`cn_profile_source_alternatives.md`](cn_profile_source_alternatives.md)；
-    - P1-04 继续未完成，`name`、`industry` 继续为 E1，未创建 Fixture、未实现新
-      Provider 或在线 Transport。
-  - [ ] **P1-04B CNInfo CN Profile 离线 Provider 契约与 synthetic Fixture
-    （等待用户批准）**
-    - 仅在用户批准 `cninfo` Provider ID 和 P1-04A Proposed 决策后开始；
-    - 新建独立 Descriptor、Transport Protocol、纯 Parser 和显式依赖注入 Provider，
-      只消费本地 synthetic 零/一行宽表记录；
+    - P1-04A 当时未创建 Fixture、Provider 或在线 Transport；后续 P1-04B 只落实
+      synthetic 离线骨架。P1-04 继续未完成，`name`、`industry` 继续为 E1。
+  - [x] **P1-04B CNInfo CN Profile 离线 Provider 契约与 synthetic Fixture
+    （2026-07-28 离线骨架完成）**
+    - 用户已批准稳定 Provider ID `cninfo`、CNInfo 下一离线来源及与 Eastmoney 并存；
+    - 已新建独立 Descriptor、Transport Protocol、纯 Parser 和显式依赖注入 Provider，
+      只消费本地 synthetic 零/一行宽表记录，多行和身份冲突安全拒绝；
     - 不导入/执行 AkShare，不实现在线 Transport，不进入正式 DataSource、配置、路由、
       Analyzer、Prompt、Report、通知或数据库；
-    - observed Fixture 另需先确认自动化访问与最小脱敏保存边界，再通过单独任务、
-      单独在线授权取得；E3 和正式路由门禁保持不变。
+    - 已增加明确非 observed 的单行 synthetic Fixture、离线契约/错误隔离测试和安装包
+      导出；不证明线上结构、许可或可用性，不提升任何字段到 E3；
+    - P1-04C 前必须先确认自动化访问与最小脱敏保存许可，再取得单独在线授权；当前没有
+      设置 CNInfo/Eastmoney 的正式、主备、降级或路由优先级。
   - 正常资料；
   - 部分字段缺失；
   - 空响应；
@@ -223,13 +225,13 @@
   - 合成 Fixture 不提升字段证据等级，P1-04 仍保持未完成；
   - 使用方法与边界见 [`cn_profile_provider_contract.md`](cn_profile_provider_contract.md)。
 
-阶段性说明（更新于 2026-07-27）：P1 的离线 Provider 骨架、Protocol/字段契约和显式
+阶段性说明（更新于 2026-07-28）：P1 的离线 Provider 骨架、Protocol/字段契约和显式
 离线验收入口已经完成，但 P1 整体尚未完成。P1-04 仍等待由真实响应制作的最小脱敏
 Fixture；
 2026-07-18、2026-07-25 和 2026-07-27 三次各自授权、各自计数的受控请求均在本地
 `r.json()` 解析边界失败，没有形成 `item/value` 行记录。相同入口的后续在线观察现已
-停止。P1-04A 已完成纯离线替代来源评估，Proposed 建议是建立独立 `cninfo` Profile
-Provider；P1-04B 等待用户架构批准，且只允许先做离线契约和 synthetic Fixture。
+停止。P1-04A 的 `cninfo` 架构建议已获批准，P1-04B 已完成独立 `cninfo` Profile
+Provider 离线契约与 synthetic Fixture；P1-04C 仍须先确认许可并另获在线授权。
 该证据缺口不阻塞 P2 的纯离线开发，但 Eastmoney Profile 仍不得被声明为在线可用，也
 不得进入正式 DataSource 路由。
 
@@ -448,8 +450,8 @@ B4 五日证据和候选门禁均已通过，完整记录见
 自动运行 `30249579799` 和手动复核运行 `30249744777` 的 Python 3.10/3.13 Job 均成功。
 P4-01 不再处于远端待验证状态，但该结果不扩大后续任务授权：
 
-- 不再使用相同入口在线尝试 Eastmoney Profile；下一任务改为纯离线评估替代来源或替代
-  Transport；该 P1-04A 评估现已完成，`cninfo` Proposed 建议仍待用户批准；
+- 不再使用相同入口在线尝试 Eastmoney Profile；P1-04A 评估与 P1-04B `cninfo` 离线
+  骨架现已完成；P1-04C 仍须先确认许可并另获在线授权；
 - 不启动 P2-04 在线观察或 P3 开发；
 - 不设计或启用腾讯正式路由、降级、缓存、限流、重试或熔断；
 - 不修改默认关闭配置；

@@ -35,6 +35,7 @@ packages = [
     "daily_report_agent.models",
     "daily_report_agent.pipeline",
     "daily_report_agent.providers",
+    "daily_report_agent.providers.cninfo",
     "daily_report_agent.providers.eastmoney",
     "daily_report_agent.providers.tencent",
     "daily_report_agent.storage",
