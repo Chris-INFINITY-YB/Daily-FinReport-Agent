@@ -76,6 +76,13 @@
   - 仅接入现有腾讯 Quote Shadow 编排边界，未接入 Eastmoney 或正式 Provider 路由。
 - 新增 Provider 指标与安全日志设计文档
   [`docs/provider_metrics_and_safe_logging.md`](docs/provider_metrics_and_safe_logging.md)。
+- 新增当前活跃的
+  [`主链路迁移与证据驱动优化实施方案`](docs/production_pipeline_and_evidence_optimization_plan.md)：
+  - P1-04B 后冻结净新增 Provider，优先完成新旧链路双跑和可回退的正式路由；
+  - 定义 Registry、能力级 Retry/Fallback、持久化 Circuit Breaker、限流和缓存边界；
+  - 固定 Tencent `MarketSnapshot` 与旧历史 `PriceWindow` 不可静默互换的金融语义；
+  - 定义版本化 Pydantic 事件、程序控制的 evidence ID、处理账本和增量事件更新；
+  - 定义可审计报告、Telegram 文件推送、历史 Replay、七日 Shadow 和旧链路删除门禁。
 
 ### Changed
 
@@ -90,6 +97,10 @@
   安装/验证命令和当前开发分支测试基线。
 - 路线图将 P1-04A 标记为“决策已接受”、P1-04B 标记为“离线骨架完成”；P1-04、
   P2-04 和 P3 状态均未改变。
+- 当前优先级从继续扩充 Provider 调整为主链路迁移、结构化增量分析、审计报告、Replay
+  和七日 Shadow；P1-04C、P3 及其他净新增 Provider 暂停，默认正式路由仍未改变。
+- `daily_report_agent/OPTIMIZATION_PLAN.md` 标记为 2026-07-13 历史方案；当前状态以
+  `README.md` 为准，当前实施顺序和切换门禁以新优化实施方案为准。
 - 腾讯 Shadow 汇总 `main()` 支持注入 timezone-aware clock；CLI 默认仍使用当前 UTC，
   测试使用固定时间，从而消除固定 2026-07-14 Fixture 随系统日期移出 7 日窗口的问题。
   naive 或非 datetime clock 会被安全拒绝，7 日窗口和原有汇总兼容断言保持不变。
@@ -149,6 +160,13 @@
 - P1-04B 双版本 compileall、普通/固定日期 dry-run、Prompt 与固定 dry-run 哈希复算、
   `PIP_NO_INDEX=1` 离线 wheel 构建、双版本临时安装及 CNInfo 导入均通过；wheel
   SHA-256 为 `ca13464eba4acd5450bbad3285da02be728ac4ee4739bd894637dfd5a0d627dc`。
+- P1-04B HEAD `ae55b9f2ca674a6744dd30c91e3316f400ce41a2` 的 GitHub Actions push 运行
+  [`30336191293`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30336191293)
+  和 pull_request 运行
+  [`30336306008`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30336306008)
+  均通过 Python 3.10/3.13 全部步骤；Draft
+  [`PR #6`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/pull/6)
+  保持未合并。
 - P4-02 定向离线测试：指标契约 `31 passed`，腾讯 Shadow `34 passed`，
   Provider contracts/errors `33 passed`，ProviderCall Repository `9 passed`。
 - Python 3.10/3.13 `compileall` 均通过且缓存输出位于项目外；普通 dry-run、Prompt

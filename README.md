@@ -6,6 +6,13 @@
 CN Profile 离线骨架和验收入口已完成，但三次独立受控观察均在 `r.json()` 边界失败，
 没有形成 observed Fixture；P1-04A 的 `cninfo` 架构建议已获批准，P1-04B 已完成独立
 CNInfo Profile 纯离线骨架与 synthetic Fixture，但没有在线 Transport 或生产接入。
+P1-04B HEAD `ae55b9f2ca674a6744dd30c91e3316f400ce41a2` 的 push 运行
+[`30336191293`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30336191293)
+和 pull_request 运行
+[`30336306008`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30336306008)
+均通过 Python 3.10/3.13 门禁；Draft
+[`PR #6`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/pull/6)
+保持未合并。
 并行 P2 的 Eastmoney CN News
 离线 Provider、synthetic 契约测试和存储幂等验证已完成，observed Fixture 仍待补充。
 P4-00 生成物治理和 P4-01
@@ -68,7 +75,7 @@ Tencent QuoteProvider
 | 阶段 2-B4：连续人工观察 | 验收及候选门禁通过 | 五日证据、候选离线回归和 2026-07-25 同候选在线验证均通过 |
 | 并行 P1：Eastmoney CN Profile | 阶段性完成 | 离线契约、Provider 骨架和 synthetic 验收入口已完成；真实脱敏 Fixture 未完成 |
 | P1-04A：CN Profile 替代来源评估 | 决策已接受 | `cninfo` 独立来源架构已获批准；不等于在线或许可批准 |
-| P1-04B：CNInfo CN Profile | 离线骨架完成 | 独立零/一行宽表契约、synthetic Fixture、错误隔离与安装包导出已完成；P1-04 未完成 |
+| P1-04B：CNInfo CN Profile | 本地/远端离线门禁通过 | 独立零/一行宽表契约、synthetic Fixture、错误隔离与安装包导出已完成；Draft PR #6 未合并，P1-04 未完成 |
 | 并行 P2：Eastmoney CN News | 阶段性完成 | 离线 Transport/Parser/Provider、synthetic 契约测试和存储幂等验证已完成；observed Fixture 未完成 |
 | P4-00：生成物治理 | 已完成 | 删除历史跟踪 bytecode，测试后工作区不再被缓存污染 |
 | P4-01：离线 CI | 已合并并复核 | merge `2eeec791…` 后自动与手动运行的 Python 3.10/3.13 Job 均成功 |
@@ -476,30 +483,35 @@ LLM 或通知。使用 30 个日历日窗口可以覆盖可能跨周末的 5～7
 | 正式报告是否正常 |  |
 | 备注 |  |
 
-## 长期多数据源路线
+## 当前优化路线
 
 项目目标是从多方网站采集可追溯信息，再由标准模型和证据驱动分析组合结果，而不是依赖
 腾讯或任何单一网站。不同信息类型应由独立 Provider 承担，不能因为字段外观相似而混合
 金融语义。
 
-B4 观测期间并行任务、完成状态和后续合并门禁，详见
-[`docs/parallel_development_plan.md`](docs/parallel_development_plan.md)。该计划不改变腾讯
-QuoteProvider 的验收门禁。
+B4/P1/P2 的历史任务、完成状态和合并门禁见
+[`docs/parallel_development_plan.md`](docs/parallel_development_plan.md)。从 P1-04B 起，
+当前活跃路线改为
+[`docs/production_pipeline_and_evidence_optimization_plan.md`](docs/production_pipeline_and_evidence_optimization_plan.md)：
+冻结净新增 Provider，优先让新 Provider 架构以可回退方式接管正式主链路。
 
 后续路线包括：
 
-1. 上传当前本地提交并验证 Python 3.10/3.13 GitHub Actions 离线 CI；
-2. 停止对 `stock_individual_info_em` 相同入口继续在线尝试 Eastmoney Profile；
-   P1-04B CNInfo 纯离线骨架已完成；P1-04C 必须先确认许可，再另行申请受控在线授权；
-3. 接入至少两个可切换的 A 股公司新闻来源；
-4. 将交易所或巨潮公告建模为独立公告来源；
-5. 接入财联社类市场快讯和其他市场资讯来源；
-6. 为多源证据增加来源标识、原文链接、时间和质量问题；
-7. 在契约、离线测试和在线证据充分后，再设计路由、降级、限流、缓存和增量抓取；
-8. 只有通过独立验收的数据，才允许进入 Analyzer、Prompt、Report 或通知。
+1. 保持 P1-04C、P3、公告、快讯和其他净新增 Provider 暂停；
+2. 建立 `legacy`、`provider_shadow`、`provider_primary` 三模式和可测试回退；
+3. 建立 Provider Registry、能力级 Retry、Fallback、限流、缓存和持久化熔断；
+4. 腾讯接管单点行情快照；旧兼容适配器继续提供多日 `PriceWindow`，不得混淆语义；
+5. Eastmoney News 只有在许可、observed Fixture、在线 Transport 和受控在线门禁通过后
+   才进入 Shadow 路由；
+6. 新链路直接生成标准模型并与旧链路双跑，不把新 Provider 反向转换为 `StockData`；
+7. 增加 Pydantic 结构化事件、程序控制的 evidence ID 校验和处理账本增量状态；
+8. 增加来源引用、健康卡片、Token/成本、通知审计和 Telegram 文件推送；
+9. 实现只读历史 Replay，并完成七个交易日无人值守 Shadow；
+10. 七日门禁和人工评审通过后才切换默认路由；再经过稳定期和单独批准后删除旧链路。
 
 长期架构要求单一来源失败不能阻断整份日报，来源之间能够交叉验证，报告中的结论能够
-追溯到具体证据。腾讯只承担其中一个单点行情 Provider 的候选角色。
+追溯到具体证据。当前 Eastmoney 新旧实现共享同一上游，不能被描述为真正的跨来源新闻
+Fallback；第二新闻源将在主链路迁移稳定后再恢复开发。
 
 ## 开发者验证
 
