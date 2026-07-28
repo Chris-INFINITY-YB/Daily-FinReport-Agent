@@ -1,13 +1,14 @@
-# Provider 路由基础契约（M1-01）
+# Provider 路由基础契约（M1-01 / M1-02）
 
 > 状态：Implemented — pure offline foundation
 > 日期：2026-07-28
-> 范围：Registry、RoutePolicy、RouteResult、配置解析和正式模式门禁
+> 范围：Registry、RoutePolicy、RouteResult、ProviderRouter、配置解析和正式模式门禁
 
 ## 1. 结论
 
-M1-01 只建立确定、不可变、无 I/O 的路由基础，不接管正式日报主链路。当前唯一可执行
-模式仍是 `legacy`：
+M1-01 建立确定、不可变、无 I/O 的选择契约；M1-02 增加仅供单元测试和纯离线内部入口
+显式调用的通用 `ProviderRouter`。两项都不接管正式日报主链路，当前唯一正式可执行模式
+仍是 `legacy`：
 
 ```text
 legacy
@@ -23,8 +24,9 @@ provider_primary
 门禁不会根据 `fallback_to_legacy` 静默退回。这样可以避免配置人员以为新链路已经运行，
 实际却得到旧链路报告或半成品报告。
 
-本任务没有调用 Provider API、创建 observed Fixture、实现在线 Transport、Retry、
-网络 Fallback、Circuit Breaker、限流、缓存或正式 Provider 编排。
+M1-02 的“调用”只表示执行测试显式注入的 Fake Invoker，没有调用 Provider API。当前
+没有 observed Fixture、在线 Transport、真实 Retry、网络 Fallback、Circuit Breaker、
+限流、缓存或正式 Provider 编排。
 
 ## 2. 配置契约
 
@@ -124,11 +126,73 @@ Registry 的构造、注册、`get()` 和 `query()` 只操作内存元数据，�
 - 安全错误码；
 - 可选且必须与所选 Descriptor 一致的标准 `ProviderResult[T]`。
 
-M1-01 不会调用 Provider，因此 `select_route()` 返回的 `provider_result` 为 `None`。
+M1-01 的 `select_route()` 不会调用 Provider，因此其 `provider_result` 为 `None`。
 `attempted_provider_ids` 在本阶段表示“路由选择尝试”，不表示已经发出网络请求。后续正式
 编排必须在真实调用边界重新记录调用顺序和结果，不能把选择尝试伪报为 ProviderCall。
 
-## 6. 安全错误码
+## 6. M1-02 ProviderRouter 状态机
+
+`ProviderRouter[T]` 和便捷入口 `execute_route()` 只接受显式注入：
+
+- `ProviderRegistry`
+- `RoutePolicy`
+- 同步 `ProviderInvoker[T]`
+- 纯 `ResultEvaluator[T]`
+
+构造 Router 不执行 Invoker。执行时严格按 RoutePolicy 的候选顺序同步串行处理，每个
+Provider ID 在一次 route 中最多出现和调用一次；RoutePolicy 会拒绝重复候选。
+
+每个候选产生一个不可变 `RouteAttempt`：
+
+| 字段 | 语义 |
+|---|---|
+| `provider_id` | 安全、规范化 Provider ID |
+| `attempt_index` | 从 1 连续递增的候选位置 |
+| `terminal_status` | `success/empty/partial/failed/skipped` |
+| `item_count` / `issue_count` | 非负标准结果计数 |
+| `error_code` | 固定安全短码，不保存异常正文 |
+| `selected` | 是否成为最终标准结果 |
+| `fallback_triggered` | 本次终态是否实际推进后续候选 |
+
+`skipped` 用于 disabled、runtime stage 不匹配、未注册/能力市场不匹配或预算耗尽；它不
+调用 Invoker，也不消耗预算。Router 不记录 URL、Header、Cookie、Token、原始响应、
+证券价格、新闻正文、数据库路径或异常正文。
+
+### 6.1 状态转换
+
+```text
+candidate
+→ skipped: 不调用，继续检查候选
+→ failed: 预算和候选仍可用时继续 Fallback
+→ success: 选择并停止
+→ empty: RoutePolicy.fallback_on_empty 决定停止或继续
+→ partial: ResultEvaluator 的 FallbackDecision 决定停止或继续
+```
+
+Evaluator 只返回 `ResultEvaluation`，通用 Router 不猜测 Quote 缺失证券、News 时间窗口
+或其他业务 partial 规则。所有通过 evaluator 的结果均保存在 `retained_results`；
+M1-02 没有 ResultMerger，也不进行跨 Provider 数据合并。
+
+### 6.2 调用预算
+
+- `max_call_budget` 是整次 route 的 Invoker 总调用预算；
+- 预算在进入 Invoker 前扣减，因此 ProviderError 或普通异常不能绕过预算；
+- 一次真实 Fake Invoker 调用消耗 1，skipped 消耗 0；
+- 预算为 0 时所有合格候选都记录为 `skipped/call_budget_exhausted`；
+- 预算耗尽后的候选不会执行；
+- `RouteResult` 返回 `call_budget_used` 和 `call_budget_remaining`，且非 skipped
+  RouteAttempt 数必须等于已用预算。
+
+### 6.3 异常边界
+
+- 标准 `ProviderError` 只保留其安全 code；缺失 code 时使用 `provider_failed`；
+- 普通异常固定映射为 `invoker_failed`，不保存类型或正文；
+- evaluator 异常固定映射为 `evaluator_failed`；
+- 非 `ProviderResult`、Descriptor 不一致和非法 evaluator 返回均成为安全 failed；
+- `KeyboardInterrupt` 和 `SystemExit` 不被吞掉；
+- 只有 RouteAttempt 成功构造并标记 selected 后，Router 才会返回 Provider 成功终态。
+
+## 7. 安全错误码
 
 当前封闭错误码：
 
@@ -138,21 +202,30 @@ M1-01 不会调用 Provider，因此 `select_route()` 返回的 `provider_result
 - `capability_market_mismatch`
 - `call_budget_exhausted`
 - `no_eligible_provider`
+- `provider_disabled`
+- `runtime_stage_ineligible`
+- `provider_failed`
+- `invoker_failed`
+- `invalid_provider_result`
+- `evaluator_failed`
+- `invalid_evaluation`
 
 错误消息只描述契约失败，不包含证券、价格、URL、Header、Cookie、Token、响应正文、
 数据库路径或底层异常正文。
 
-## 7. 未完成边界
+## 8. 未完成边界
 
-下列能力不属于 M1-01：
+下列能力不属于 M1-01/M1-02：
 
-- Provider 实例构造和真实调用；
 - Provider Shadow/Primary 编排；
-- 部分结果合并；
+- 真实 Provider 实例装配或网络调用；
+- 部分结果业务合并；
 - Retry 和网络 Fallback；
 - Circuit Breaker、限流、缓存、freshness 和审计持久化；
 - 腾讯行情进入 Analyzer/Report/Notifier；
 - Eastmoney/CNInfo 在线接入；
 - 旧 DataSource 或自由文本 Analyzer 删除。
 
-在上述能力具备独立离线测试、在线授权和迁移验收前，默认配置必须保持 `legacy`。
+虽然纯离线 Router 可被测试显式调用，`main.py` 仍在读取凭据和启动副作用前拒绝
+`provider_shadow/provider_primary`。在上述能力具备独立离线测试、在线授权和迁移验收
+前，默认配置必须保持 `legacy`。

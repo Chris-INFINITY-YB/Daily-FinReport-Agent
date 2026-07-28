@@ -36,6 +36,8 @@ Shadow；实现 HEAD `29233c22155bf6ecf2c5b3ff32c12942cacbfc70` 的 push 运行
 M1-01 已完成纯离线 Provider 路由基础契约：默认模式仍为 `legacy`；
 `provider_shadow/provider_primary` 仅可解析并会在任何 Provider、存储、LLM 或报告动作
 前以 `route_stage_not_enabled` 明确拒绝，尚不可用于生产或 Shadow 双跑。
+M1-02 已在该契约上增加仅供纯离线内部显式调用的泛型 `ProviderRouter` 状态机、调用预算、
+`RouteAttempt` 和 Fake Fallback 验证；它没有真实 Retry 或网络 Fallback，也未接入主链路。
 
 `daily_report_agent` 是一个面向多数据源、证据驱动分析的每日市场信息智能体。当前正式
 链路继续使用既有 DataSource；新的 Provider 能力采用契约化、离线测试和旁路观察逐步
@@ -86,6 +88,7 @@ Tencent QuoteProvider
 | P4-01：离线 CI | 已合并并复核 | merge `2eeec791…` 后自动与手动运行的 Python 3.10/3.13 Job 均成功 |
 | P4-02：Provider 指标与安全日志 | 远端门禁通过 | 八字段安全事件、固定 JSON 日志及腾讯 Shadow 最小接入的 push/PR 双版本 CI 均成功 |
 | M1-01：Provider 路由基础契约 | 本地离线实现完成 | 三模式解析、Registry、RoutePolicy/RouteResult 和纯选择逻辑已完成；非 legacy 模式仍由阶段门禁拒绝 |
+| M1-02：纯离线 ProviderRouter | 本地离线实现完成 | 串行状态机、RouteAttempt、总调用预算及 Fake Fallback 已完成；没有生产编排或网络调用 |
 | 当前开发状态 | 冻结净新增 Provider，准备主链路迁移 | 优先建设新旧双跑、正式路由、高可用、结构化增量分析、Replay 和七日 Shadow；默认路由未改变 |
 
 ### 当前基线
@@ -98,7 +101,7 @@ Tencent QuoteProvider
 282 passed
 
 当前开发分支测试：
-573 passed（Python 3.10.20 / 3.13.9）
+606 passed（Python 3.10.20 / 3.13.9）
 
 P1-04B 开发分支 HEAD：
 ae55b9f2ca674a6744dd30c91e3316f400ce41a2
@@ -203,6 +206,12 @@ QuoteProvider 已通过正式验收，也不授权进入正式分析、报告、
 - 正式配置缺失时默认为 `legacy`；另外两种模式当前只完成解析，会在读取凭据和启动任何
   业务副作用前明确失败，不会静默 fallback。契约和未完成边界见
   [`docs/provider_routing_contract.md`](docs/provider_routing_contract.md)；
+- M1-02 新增泛型 `ProviderRouter[T]`、`ProviderInvoker[T]`、`ResultEvaluator[T]`、
+  `ResultEvaluation` 和不可变 `RouteAttempt`；Router 只接受显式注入，严格同步串行，
+  每个候选最多调用一次，并在进入 Invoker 前消耗总调用预算；
+- Router 只在纯离线 Fake 测试中执行。`success/empty/partial/failed/skipped`、empty 策略、
+  partial evaluator 决策、安全异常映射和 legacy fallback 契约已经固定，但没有业务
+  merger、真实 Retry、网络 Fallback、Circuit Breaker、限流、缓存或正式 Pipeline 接入；
 - Provider 迁移边界和字段证据详见
   [`docs/provider_migration.md`](docs/provider_migration.md)；Eastmoney CN Profile 的字段
   证据和在线边界详见

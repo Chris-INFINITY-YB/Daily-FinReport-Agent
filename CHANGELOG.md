@@ -11,6 +11,15 @@
 
 ### Added
 
+- 新增 M1-02 纯离线通用 `ProviderRouter[T]` 状态机：
+  - 只接受显式注入的 Registry、RoutePolicy、同步 Invoker 和纯 ResultEvaluator；
+  - 封闭 `success/empty/partial/failed/skipped` 终态与不可变 `RouteAttempt`；
+  - 每个候选最多调用一次，严格串行；真实 Invoker 调用在进入边界前消耗一个总预算，
+    skipped 不消耗预算，结果公开已用和剩余预算；
+  - empty fallback 由 RoutePolicy 控制，partial fallback 由能力专属 evaluator 控制，
+    已判定结果保留在 `retained_results`，本任务不实现业务合并；
+  - 标准 ProviderError、普通异常、evaluator 失败和非法结果具有固定安全失败语义，
+    `KeyboardInterrupt`/`SystemExit` 继续传播。
 - 新增 M1-01 Provider 正式路由纯离线基础：
   - 封闭 `legacy/provider_shadow/provider_primary` 模式，旧配置缺失时仍默认为
     `legacy`；
@@ -135,6 +144,9 @@
 
 ### Security
 
+- M1-02 Router 构造不调用 Invoker，不读取配置、`.env`、环境变量、凭据、数据库或文件，
+  也不导入在线 Transport；普通异常和 evaluator 异常正文不会进入 RouteAttempt 或
+  RouteResult。
 - M1-01 Registry 构造、注册、查询和选择均为纯内存操作；配置解析不读取额外环境变量、
   凭据或 Transport。新增测试验证 import、Registry 构造和 legacy dry-run 不加载腾讯
   在线 Transport。
@@ -167,6 +179,9 @@
 
 ### Validation
 
+- M1-02 新增 `33` 项纯离线 Fake Router 测试；M1-01 + M1-02 路由范围为 `85 passed`，
+  Python 3.10.20 和 Python 3.13.9 完整测试均为 `606 passed`。覆盖五种终态、停止与
+  Fallback、预算耗尽、skipped、阶段隔离、异常安全、不可变性和导入/构造隔离。
 - M1-01 新增 `52` 项离线测试；Python 3.10.20 和 Python 3.13.9 完整测试均为
   `573 passed`。定向范围覆盖三模式、非法类型/字段、Registry 排序与重复注册、
   capability/market 校验、disabled/stage 隔离、fallback、预算、构造和 Transport

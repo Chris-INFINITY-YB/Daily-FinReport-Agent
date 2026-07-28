@@ -504,11 +504,13 @@ Replay 必须满足：
 
 - [x] M1-01 定义纯离线 Registry、RoutePolicy、RouteResult 和确定性选择逻辑；
 - [x] 增加 `legacy/provider_shadow/provider_primary` 配置解析与阶段门禁；
-- [ ] 实现可调用 Provider 的 Router 和正式/Shadow 编排；
-- [ ] 实现错误分类重试、请求预算和部分结果降级；
+- [x] M1-02 实现可显式调用的纯离线泛型 ProviderRouter、RouteAttempt 和 Fake 状态机；
+- [x] 落实 Router 总调用预算、empty/partial Fallback 决策和安全异常终态；
+- [ ] 将 Router 接入正式/Shadow 编排；
+- [ ] 实现错误分类 Retry 和真实网络 Fallback；
 - [ ] 实现持久化 Circuit Breaker；
 - [ ] 实现限流、缓存 freshness 和审计事件；
-- [ ] 使用纯离线 Fake Provider 覆盖所有状态转换；
+- [x] 使用纯离线 Fake Invoker/Result 覆盖 Router 状态转换；
 - [x] 默认仍为 `legacy`，另外两种模式在业务副作用前明确拒绝。
 
 ### M2：行情迁移
