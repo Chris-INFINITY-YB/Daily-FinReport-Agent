@@ -9,6 +9,7 @@ from .contracts import (
     normalize_provider_id,
     normalize_provider_operation,
 )
+from .cninfo import CNINFO_PROFILE_DESCRIPTOR, CninfoProfileProvider
 from .errors import (
     ProviderAuthenticationError,
     ProviderBlockedError,
@@ -39,6 +40,8 @@ from .telemetry import (
 )
 
 __all__ = [
+    "CNINFO_PROFILE_DESCRIPTOR",
+    "CninfoProfileProvider",
     "EASTMONEY_NEWS_DESCRIPTOR",
     "EASTMONEY_PROFILE_DESCRIPTOR",
     "EastmoneyNewsProvider",
