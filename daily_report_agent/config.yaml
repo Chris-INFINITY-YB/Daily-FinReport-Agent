@@ -13,13 +13,14 @@ data:
   news_days: 7        # 抓取最近几天的新闻
   max_news_per_stock: 15   # 每只股票喂给 LLM 的最大新闻条数(控成本)
 
-# ============ 正式数据路由(M1-01 默认门禁) ============
-# provider_shadow/provider_primary 仅完成配置和离线契约，当前阶段会明确拒绝执行。
+# ============ 正式数据路由(M1-05A 默认门禁) ============
+# provider_shadow 仍需 shadow_enabled、CLI 开关和独立数据库路径；provider_primary 未启用。
 pipeline:
   data_route: legacy
   fallback_to_legacy: true
   max_provider_calls: 1
   provider_priorities: {}
+  provider_shadow_database_path: null
 
 # ============ 可选本地存储(默认关闭) ============
 storage:

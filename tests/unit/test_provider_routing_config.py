@@ -15,8 +15,6 @@ from daily_report_agent.config import (
 )
 from daily_report_agent.providers.routing import (
     DataRouteMode,
-    RouteContractError,
-    RouteErrorCode,
 )
 
 
@@ -123,9 +121,16 @@ def test_repository_default_config_preserves_all_closed_defaults() -> None:
     assert config["providers"]["tencent_quote"]["shadow_enabled"] is False
 
 
-@pytest.mark.parametrize("mode", ["provider_shadow", "provider_primary"])
-def test_nonlegacy_main_mode_fails_before_any_side_effect(
+@pytest.mark.parametrize(
+    ("mode", "expected_code"),
+    [
+        ("provider_shadow", "provider_shadow_cli_gate_required"),
+        ("provider_primary", "route_stage_not_enabled"),
+    ],
+)
+def test_closed_nonlegacy_main_mode_fails_before_any_side_effect(
     mode: str,
+    expected_code: str,
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -160,7 +165,7 @@ providers:
     )
     monkeypatch.setattr(
         main,
-        "maybe_run_tencent_quote_shadow",
+        "run_tencent_provider_shadow_from_config",
         lambda *args, **kwargs: pytest.fail("不得启动腾讯 Shadow"),
     )
     monkeypatch.setattr(
@@ -175,10 +180,10 @@ providers:
     )
     monkeypatch.setattr(main.report, "REPORTS_DIR", str(reports))
 
-    with pytest.raises(RouteContractError) as raised:
+    with pytest.raises(ValueError) as raised:
         main.run(str(config), do_notify=False, dry_run=False)
 
-    assert raised.value.code is RouteErrorCode.ROUTE_STAGE_NOT_ENABLED
+    assert raised.value.code.value == expected_code
     assert not database.exists()
     assert not reports.exists()
 

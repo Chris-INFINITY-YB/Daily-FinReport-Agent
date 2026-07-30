@@ -1,8 +1,9 @@
-# Provider Circuit Breaker 离线状态与 SQLite 契约（M1-04A / M1-04B）
+# Provider Circuit Breaker 状态、SQLite 与 Shadow 契约（M1-04A 至 M1-05A）
 
-> 状态：Implemented — offline transitions and SQLite persistence
+> 状态：Implemented — offline transitions, SQLite persistence and Shadow assembly
 > 日期：2026-07-30
-> 范围：不可变模型、确定性三态转换、SQLite CAS、显式时间与跨连接单探针契约
+> 范围：不可变模型、确定性三态转换、SQLite CAS、显式时间、跨连接单探针及腾讯
+> Shadow 调用顺序
 
 ## 1. 范围与结论
 
@@ -16,9 +17,10 @@ provider_id + operation
 所有转换只依赖不可变输入和调用方显式传入的 timezone-aware `now`。
 
 M1-04B 在该内核外增加 SQLite migration、Repository/Store、version/CAS 和
-`BEGIN IMMEDIATE` 原子事务。跨连接单探针已用临时文件数据库离线验证，但本实现仍未接入
-`ProviderRouter`，也没有调用 Provider。`provider_shadow/provider_primary` 仍在业务
-副作用前拒绝，默认正式链路仍是 `legacy`。
+`BEGIN IMMEDIATE` 原子事务。跨连接单探针已用临时文件数据库离线验证。M1-05A 已将该
+Store 接入腾讯 Quote 的 `provider_shadow` 纯离线编排；所有测试只使用 Fake/Fixture，
+没有发送网络请求。`provider_primary` 仍在业务副作用前拒绝，默认正式链路仍是
+`legacy`。
 
 ## 2. 核心模型
 
@@ -172,29 +174,33 @@ version 不进入 M1-04A 状态转换。
 version。独立连接竞争测试固定为一个 probe、一个 skip，最终只有一行 HALF_OPEN active
 状态。正确性不依赖 sleep、随机退避或进程内锁。
 
-## 7. 未来编排顺序
+## 7. M1-05A Shadow 编排顺序
 
-未来集成必须保持：
+腾讯 Shadow 已落实：
 
 ```text
-Router preflight
-→ Circuit Breaker evaluate
+SQLite Circuit preflight
 → allow / skip / probe
-→ Invoker / Retry
+→ 单候选 Router / 最多一次 Invoker
 → record outcome
-→ Fallback decision
+→ ProviderCall / Snapshot / Shadow PipelineRun
+→ legacy 正式日报
 ```
 
 OPEN 窗口内的 skip 必须发生在 Invoker 和物理调用预算扣减前，因此不调用 Provider、
-不消耗预算。M1-04A/M1-04B 均未修改 `ProviderRouter`、Retry 或预算实现；Store 目前只能由
-离线测试显式调用。
+不消耗预算。allow/probe 后的 Provider success/empty/partial 记录 success 并使 probe
+关闭；timeout/network/unavailable 等 Provider 错误按既有分类记录 failure；validation、
+evaluator 和 caller 错误为 neutral。Store preflight 失败时 fail closed；outcome 写入或
+version 冲突不会触发第二次 Provider 调用。
 
 ## 8. 未完成边界
 
-- Router、Retry、Fallback 或正式/Shadow 编排集成；
-- Provider 网络调用、恢复调度、sleep、退避或后台任务；
+- `provider_primary` 正式编排；
+- 新 Router 的受控在线验证、恢复调度、sleep、退避或后台任务；
+- 真实 Retry 或第二 Provider Fallback；
 - 限流、缓存、freshness 和生产观测；
 - 默认配置或正式 DataSource、Analyzer、Report、Notifier 变更。
 - 跨主机共享数据库或 SQLite 之外的分布式协调。
 
-下一任务 M1-05 才考虑 Tencent 进入 `provider_shadow`；M1-04B 本身不授权在线取数。
+M1-05A 不授权在线取数。下一步 M1-05B 只能在用户单独授权后执行一次固定证券、单 HTTP
+请求、Retry/Fallback 均为 0 的受控在线验证。

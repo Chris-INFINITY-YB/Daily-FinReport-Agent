@@ -11,6 +11,19 @@
 
 ### Added
 
+- 新增 M1-05A Tencent ProviderRouter Shadow 纯离线装配：
+  - 新增独立 `tencent_provider_shadow` 编排边界，固定
+    Registry → Circuit preflight → 单候选 Router → ProviderCall/Snapshot →
+    Circuit outcome → legacy 日报顺序；
+  - Registry 只注册 `tencent-finance/QUOTE/cn/shadow_eligible`，RoutePolicy 总调用预算为
+    1，RetryPolicy 每 Provider 最大尝试为 1，不允许 legacy 或第二网络 Provider Fallback；
+  - 腾讯结果 evaluator 区分 success/empty/partial/failed，部分结果保留有效
+    `MarketSnapshot`，不生成 `PriceWindow`；
+  - 独立 Shadow SQLite 复用现有 PipelineRun、ProviderCall、Security、MarketSnapshot
+    和 Circuit schema，不保存 RawResponse 正文；
+  - 新增
+    [`docs/tencent_provider_shadow_contract.md`](docs/tencent_provider_shadow_contract.md)
+    固定模式门禁、预算、Circuit、持久化和 M1-05B 授权边界。
 - 新增 M1-04B SQLite Circuit Breaker 持久化：
   - 新增不可变 `PersistedCircuitBreakerSnapshot/PersistedCircuitTransition`，version 只用于
     CAS，不进入 M1-04A 业务状态；
@@ -137,11 +150,15 @@
 
 ### Changed
 
-- 默认配置新增 `pipeline` 路由段，但 `data_route` 保持 `legacy`；
+- `pipeline` 新增默认 `null` 的 `provider_shadow_database_path`，`data_route` 保持
+  `legacy`；
   `storage.enabled=false` 和 `providers.tencent_quote.shadow_enabled=false` 保持不变。
-- `provider_shadow/provider_primary` 当前在读取 `.env`、启动存储、调用 Provider/
-  DataSource、构造 LLM 或生成报告前以 `route_stage_not_enabled` 明确失败；不会静默退回
-  legacy 或生成半成品报告。
+- `provider_primary` 继续在所有副作用前拒绝。`provider_shadow` 必须同时满足
+  `shadow_enabled=true`、显式 `--allow-provider-shadow`、非 dry-run 和独立数据库路径，
+  任何门禁缺失均在 `.env`、数据库、Transport、LLM 和报告前安全拒绝。
+- `legacy` 不再触发历史配置式腾讯 Shadow 旁路；历史 B4 专用入口、证据和文档保持不变。
+  M1-05A Shadow 无论 success/empty/partial/failed/skipped 都与正式 Pipeline 状态隔离，
+  并继续运行既有 legacy 日报。
 - `daily_report_agent.providers` 顶层安全导出 Eastmoney Profile/News 与 CNInfo Profile
   Descriptor/Provider。
 - `pyproject.toml` 的显式 package 列表包含
@@ -174,6 +191,11 @@
 
 ### Security
 
+- M1-05A 全部新增测试使用 Fake/Fixture，未发送网络请求。在线 Transport 仅在五重门禁和
+  Circuit allow/probe 后由 Invoker 惰性构造；legacy、dry-run、缺 CLI 开关、缺独立路径、
+  OPEN skip 和 Circuit Store 失败路径均不加载在线 Transport。
+- Shadow SQLite 与正式数据库路径必须不同；只保存安全请求指纹、聚合计数和封闭错误码，
+  `retry_count=0`、`raw_responses=0`，不保存 URL、Header、Cookie、Token 或响应正文。
 - M1-04B 持久化错误使用封闭 `CircuitStorageErrorCode`，不公开 SQL、数据库路径或原始 row；
   Store 不缓存状态、不调用系统时钟、不 sleep、不联网，也未接入 ProviderRouter。探针唯一性
   由 SQLite 事务和 CAS 提供，不使用进程内全局锁。
@@ -219,6 +241,9 @@
 
 ### Validation
 
+- M1-05A 新增 `45` 项纯离线测试；Python 3.10.20 和 Python 3.13.9 完整测试均为
+  `836 passed`。覆盖五重门禁、单次在线验证入口的默认拒绝、导入隔离、单调用预算、Circuit
+  CLOSED/OPEN/HALF_OPEN、Store fail-closed、部分结果、幂等持久化及正式报告隔离。
 - M1-04B 新增 `48` 项离线测试；包含既有回归的 M1-04B 定向范围为 `57 passed`，
   M1-04A + M1-04B Circuit Breaker 范围为 `128 passed`，M1-01 至 M1-04B 路由与熔断
   范围为 `263 passed`。Python 3.10.20 和 Python 3.13.9 完整测试均为 `791 passed`。

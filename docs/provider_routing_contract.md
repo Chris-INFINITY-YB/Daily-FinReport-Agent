@@ -1,36 +1,37 @@
-# Provider 路由、Retry 与 Circuit Breaker 契约（M1-01 至 M1-04B）
+# Provider 路由、Retry、Circuit 与 Shadow 契约（M1-01 至 M1-05A）
 
-> 状态：Implemented — pure offline foundation
+> 状态：Implemented — pure offline foundation and Tencent Shadow assembly
 > 日期：2026-07-30
 > 范围：Registry、ProviderRouter、错误分类、Retry、Circuit Breaker 内核与 SQLite Store、
-> 统一预算、配置与模式门禁
+> 统一预算、配置门禁及腾讯 Quote Shadow 纯离线编排
 
 ## 1. 结论
 
 M1-01 建立确定、不可变、无 I/O 的选择契约；M1-02 增加仅供单元测试和纯离线内部入口
 显式调用的通用 `ProviderRouter`；M1-03 在 Router 内增加类型驱动错误分类、Provider
 内部 Retry 状态机和统一物理调用预算；M1-04A 新增尚未接入 Router 的纯离线 Circuit
-Breaker 转换内核；M1-04B 增加尚未接入 Router 的 SQLite 原子持久化。所有能力都不接管
-正式日报主链路，当前唯一正式可执行模式仍是 `legacy`：
+Breaker 转换内核；M1-04B 增加 SQLite 原子持久化；M1-05A 将这些能力装配到腾讯 Quote
+`provider_shadow` 旁路。正式日报仍只由 legacy 链路生成：
 
 ```text
 legacy
   → 继续执行既有 DataSource → StockData → Analyzer → Report
 
 provider_shadow
+  → 仅在五重门禁通过后运行腾讯 Shadow
+  → Shadow 完成后无条件继续 legacy 正式日报
+  → Shadow 结果不进入 Analyzer / Prompt / Report / Notifier
+
 provider_primary
-  → 配置可以解析
-  → 在读取 .env、启动存储、构造 LLM、调用 DataSource/Provider 或生成报告前
-     抛出 route_stage_not_enabled
+  → 在读取 .env、启动存储、构造 LLM、调用 DataSource/Provider 或生成报告前拒绝
 ```
 
 门禁不会根据 `fallback_to_legacy` 静默退回。这样可以避免配置人员以为新链路已经运行，
 实际却得到旧链路报告或半成品报告。
 
-M1-02/M1-03 的“调用”只表示执行测试显式注入的 Fake Invoker，没有调用 Provider API。
-Retry 不执行 sleep、退避、抖动或网络等待。Circuit Breaker Store 已离线持久化并验证
-跨连接单探针，但不调用 Provider，也未接入 Router。当前没有 observed Fixture、真实网络
-Retry/Fallback、限流、缓存或正式 Provider 编排。
+M1-05A 的新编排测试也只执行显式注入的 Fake/Fixture Provider，没有调用 Provider API。
+Retry 不执行 sleep、退避、抖动或网络等待。当前没有真实网络 Retry/Fallback、第二候选、
+限流、缓存或正式 Provider 编排；新 Router 的首次在线请求属于单独授权的 M1-05B。
 
 ## 2. 配置契约
 
@@ -42,6 +43,7 @@ pipeline:
   fallback_to_legacy: true
   max_provider_calls: 1
   provider_priorities: {}
+  provider_shadow_database_path: null
 ```
 
 兼容旧配置：缺少整个 `pipeline` 段或缺少 `data_route` 时均解析为 `legacy`。
@@ -50,16 +52,22 @@ pipeline:
 
 | 字段 | 类型与边界 | 当前语义 |
 |---|---|---|
-| `data_route` | `legacy/provider_shadow/provider_primary` | 只有 `legacy` 可执行 |
+| `data_route` | `legacy/provider_shadow/provider_primary` | legacy 默认；Shadow 受五重门禁；Primary 拒绝 |
 | `fallback_to_legacy` | 严格布尔值 | 进入未来 Provider 编排后的策略输入；不绕过当前阶段门禁 |
 | `max_provider_calls` | `0..100` 整数，布尔值不视为整数 | 路由调用总预算契约 |
 | `provider_priorities` | `provider_id: 0..1000000` 映射 | 按 `(priority, provider_id)` 形成确定候选顺序 |
+| `provider_shadow_database_path` | 非空路径字符串或 `null` | Shadow 必须显式设置，且不得与正式库相同 |
 
 未知 `pipeline` 字段、非法模式、字符串布尔值、负数、浮点优先级、非法 Provider ID 和
 越界值都会安全拒绝。解析过程不读取环境变量、`.env`、凭据、文件或 Transport。
 
 `storage.enabled=false` 与
 `providers.tencent_quote.shadow_enabled=false` 保持不变。
+
+M1-05A 的 `provider_shadow` 还要求显式 `--allow-provider-shadow`、非 dry-run、
+`max_provider_calls=1`，并只允许 `tencent-finance` 优先级项。任一条件不满足均在读取
+`.env`、打开数据库、构造 Transport、LLM 或报告前拒绝。`legacy` 不构造 Registry、
+Router、Circuit Store，不打开 Shadow 数据库，也不产生 Shadow 指标。
 
 ## 3. Registry
 
@@ -315,23 +323,57 @@ Router preflight
 → Fallback decision
 ```
 
-其中 OPEN 窗口内的 `skip` 必须发生在 Invoker 和预算扣减前。M1-04B 已持久化 preflight，
-但没有实现 Router 集成、真实调用或预算逻辑。
+其中 OPEN 窗口内的 `skip` 必须发生在 Invoker 和预算扣减前。M1-05A 已在腾讯 Shadow
+编排中落实该顺序；Store 失败时 fail closed，不调用 Provider，Shadow 失败也不改变正式
+Pipeline 状态。
 
-## 10. 未完成边界
+## 10. M1-05A Tencent Shadow 编排
 
-下列能力不属于 M1-01 至 M1-04B：
+M1-05A 只注册
+`tencent-finance + QUOTE + cn + shadow_eligible`，策略固定
+`max_call_budget=1`、`max_attempts_per_provider=1`、无 legacy fallback、无 empty/partial
+第二来源 fallback。单次运行至多产生一个 `RouteAttempt`、一个 `RetryAttempt` 和一次物理
+Invoker 调用。
 
-- Provider Shadow/Primary 编排；
-- 真实 Provider 实例装配或网络调用；
+编排顺序固定为：
+
+```text
+独立 Shadow PipelineRun
+→ SQLite Circuit preflight(tencent-finance, fetch_quotes)
+→ skip（预算 0）或 allow/probe
+→ 单候选 ProviderRouter
+→ Circuit success/failure/neutral outcome
+→ ProviderCall / Security / MarketSnapshot
+→ 结束 Shadow PipelineRun
+→ legacy 正式日报
+```
+
+腾讯 evaluator 不进行网络调用，也不把 `MarketSnapshot.pct_change` 转为
+`PriceWindow.period_pct_change`。全部请求返回且无 ERROR Issue 为 success；正常零项为
+empty；缺失证券或 ERROR Issue 为 partial；ProviderError 为 failed。partial 保留有效
+快照，但不会执行第二来源 Fallback。
+
+Shadow SQLite 与正式数据库路径强制隔离，复用现有 0001/0002 schema。Provider 边界的
+partial 仍以 `provider_calls.status=success`、Shadow `pipeline_runs.status=partial`
+表达，因此不需要扩大 migration；`retry_count=0`，`raw_responses=0`。
+
+完整边界见
+[`tencent_provider_shadow_contract.md`](tencent_provider_shadow_contract.md)。
+
+## 11. 未完成边界
+
+下列能力不属于 M1-01 至 M1-05A：
+
+- `provider_primary` 编排；
+- 新 Router 的受控在线验证或生产网络调用；
 - 部分结果业务合并；
 - 真实网络等待、退避、抖动、Retry 或在线 Fallback；
-- Circuit Breaker 的 Router/调用预算集成和生产运行编排；
+- Circuit Breaker 的生产运行编排；
 - 限流、缓存、freshness 和审计持久化；
 - 腾讯行情进入 Analyzer/Report/Notifier；
 - Eastmoney/CNInfo 在线接入；
 - 旧 DataSource 或自由文本 Analyzer 删除。
 
-虽然纯离线 Router 可被测试显式调用，`main.py` 仍在读取凭据和启动副作用前拒绝
-`provider_shadow/provider_primary`。在上述能力具备独立离线测试、在线授权和迁移验收
-前，默认配置必须保持 `legacy`。
+`provider_shadow` 已具备纯离线装配和严格门禁，但尚未通过 M1-05B 新链路在线验证；
+`provider_primary` 继续拒绝。在在线授权和后续迁移验收前，默认配置必须保持 `legacy`，
+腾讯不得被描述为正式或备用行情源。

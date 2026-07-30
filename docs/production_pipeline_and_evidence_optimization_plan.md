@@ -213,8 +213,9 @@ Fallback 后必须保留：
 M1-04A 已完成独立的纯离线前置契约：不可变 CLOSED/OPEN/HALF_OPEN 快照、显式
 timezone-aware 时间转换、默认错误分类映射和单探针占用。M1-04B 已增加 0002 migration、
 Repository/Store、version/CAS 和 `BEGIN IMMEDIATE` 原子 preflight，并在两个独立 SQLite
-连接竞争下验证单探针。该 Store 尚未接入 Router，没有真实 Provider 调用；未来 OPEN
-检查仍必须在 Invoker 和调用预算扣减前完成。
+连接竞争下验证单探针。M1-05A 已在腾讯 Quote 的纯离线 `provider_shadow` 编排中把该
+Store 接到 Router 外层，OPEN 检查在 Invoker 和调用预算扣减前完成；新链路仍未执行真实
+Provider 请求。
 
 Cron 每次运行都是新进程，纯内存状态无法跨运行生效。M1-04B 已在 SQLite 中持久化：
 
@@ -522,12 +523,15 @@ Replay 必须满足：
 - [x] M1-03 实现封闭错误分类、RetryPolicy、RouteAttempt 内 RetryAttempt 状态机；
 - [x] Retry 与 Fallback 共享物理 Invoker 调用预算，预算在每次进入 Invoker 前扣减；
 - [x] M1-04A 实现纯离线 Circuit Breaker 三态转换、显式时间和单探针契约；
-- [ ] 将 Router 接入正式/Shadow 编排；
+- [x] M1-05A 将 Router、SQLite Circuit Breaker 和腾讯 Quote 接入纯离线
+  `provider_shadow` 编排；
+- [ ] 将 Router 接入 `provider_primary` 正式编排；
 - [ ] 实现真实网络等待/Retry、退避调度和在线 Fallback；
 - [x] M1-04B 实现 SQLite 原子 Circuit Breaker 持久化和跨进程探针预留；
 - [ ] 实现限流、缓存 freshness 和审计事件；
 - [x] 使用纯离线 Fake Invoker/Result 覆盖 Router 状态转换；
-- [x] 默认仍为 `legacy`，另外两种模式在业务副作用前明确拒绝。
+- [x] 默认仍为 `legacy`；`provider_shadow` 受五重门禁保护，`provider_primary` 在业务
+  副作用前明确拒绝。
 
 ### M2：行情迁移
 

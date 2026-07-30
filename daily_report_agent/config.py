@@ -11,12 +11,13 @@ from daily_report_agent.providers.routing import DataRouteMode
 
 @dataclass(frozen=True, slots=True)
 class ProviderRoutingSettings:
-    """M1-01 的正式路由配置；默认且当前唯一可执行模式为 legacy。"""
+    """正式路由配置；默认模式为 legacy。"""
 
     mode: DataRouteMode = DataRouteMode.LEGACY
     allow_legacy_fallback: bool = True
     max_call_budget: int = 1
     provider_priorities: tuple[tuple[str, int], ...] = ()
+    provider_shadow_database_path: str | None = None
 
     @property
     def candidate_provider_ids(self) -> tuple[str, ...]:
@@ -40,6 +41,7 @@ _PIPELINE_KEYS = frozenset(
         "fallback_to_legacy",
         "max_provider_calls",
         "provider_priorities",
+        "provider_shadow_database_path",
     }
 )
 _MAX_PROVIDER_PRIORITY = 1_000_000
@@ -118,11 +120,24 @@ def parse_provider_routing_settings(config: dict) -> ProviderRoutingSettings:
         priorities.append((normalized_id, priority))
     priorities.sort(key=lambda item: (item[1], item[0]))
 
+    shadow_database_path = raw.get("provider_shadow_database_path")
+    if shadow_database_path is not None:
+        if not isinstance(shadow_database_path, str):
+            raise ValueError(
+                "pipeline.provider_shadow_database_path 必须是非空字符串或 null"
+            )
+        shadow_database_path = shadow_database_path.strip()
+        if not shadow_database_path:
+            raise ValueError(
+                "pipeline.provider_shadow_database_path 必须是非空字符串或 null"
+            )
+
     return ProviderRoutingSettings(
         mode=mode,
         allow_legacy_fallback=fallback,
         max_call_budget=max_calls,
         provider_priorities=tuple(priorities),
+        provider_shadow_database_path=shadow_database_path,
     )
 
 
