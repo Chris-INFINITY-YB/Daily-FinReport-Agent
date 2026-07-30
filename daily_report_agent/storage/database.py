@@ -49,9 +49,25 @@ class Database:
     @contextmanager
     def transaction(self) -> Iterator[sqlite3.Connection]:
         """提供明确的 commit/rollback 边界并在结束时关闭连接。"""
+        with self._transaction(immediate=False) as connection:
+            yield connection
+
+    @contextmanager
+    def immediate_transaction(self) -> Iterator[sqlite3.Connection]:
+        """在写入前取得 SQLite reserved lock，用于跨连接原子状态转换。"""
+        with self._transaction(immediate=True) as connection:
+            yield connection
+
+    @contextmanager
+    def _transaction(
+        self,
+        *,
+        immediate: bool,
+    ) -> Iterator[sqlite3.Connection]:
+        """仅供封闭 public transaction API 复用生命周期实现。"""
         connection = self.connect()
         try:
-            connection.execute("BEGIN")
+            connection.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
             yield connection
         except sqlite3.Error as exc:
             connection.rollback()

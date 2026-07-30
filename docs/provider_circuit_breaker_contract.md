@@ -1,8 +1,8 @@
-# Provider Circuit Breaker 纯离线契约（M1-04A）
+# Provider Circuit Breaker 离线状态与 SQLite 契约（M1-04A / M1-04B）
 
-> 状态：Implemented — pure offline state transitions
-> 日期：2026-07-28
-> 范围：不可变模型、确定性三态转换、错误映射、显式时间与单探针契约
+> 状态：Implemented — offline transitions and SQLite persistence
+> 日期：2026-07-30
+> 范围：不可变模型、确定性三态转换、SQLite CAS、显式时间与跨连接单探针契约
 
 ## 1. 范围与结论
 
@@ -15,9 +15,10 @@ provider_id + operation
 它不读取配置、环境变量、系统时钟或数据库，不 sleep、不联网，也不构造或调用 Provider。
 所有转换只依赖不可变输入和调用方显式传入的 timezone-aware `now`。
 
-本实现尚未接入 `ProviderRouter`，没有 SQLite migration、Repository、锁或跨进程状态
-共享，不具备 Cron 多进程安全。`provider_shadow/provider_primary` 仍在业务副作用前
-拒绝，默认正式链路仍是 `legacy`。
+M1-04B 在该内核外增加 SQLite migration、Repository/Store、version/CAS 和
+`BEGIN IMMEDIATE` 原子事务。跨连接单探针已用临时文件数据库离线验证，但本实现仍未接入
+`ProviderRouter`，也没有调用 Provider。`provider_shadow/provider_primary` 仍在业务
+副作用前拒绝，默认正式链路仍是 `legacy`。
 
 ## 2. 核心模型
 
@@ -111,11 +112,67 @@ HALF_OPEN 的 neutral 结果会释放当前探针，使后续调用可以重新�
 - `now < snapshot.last_transition_at` 安全拒绝，不读取本地当前时间修复；
 - OPEN 在 `now == open_until` 时即可转为 HALF_OPEN；
 - HALF_OPEN active probe 的第二次检查返回 skip；
-- `half_open_probe_active` 只是纯函数状态契约，不是线程锁或进程锁；
+- M1-04A 中的 `half_open_probe_active` 只是纯函数状态；M1-04B 通过 SQLite 原子事务持久化
+  该预留；
 - 第一版 `half_open_max_probes` 固定为 `1`；
-- M1-04B 必须通过 SQLite 原子操作实现跨进程探针预留和状态持久化。
+- 不使用全局线程锁、进程内缓存、sleep 或随机延迟保证探针唯一性。
 
-## 6. 未来编排顺序
+## 6. M1-04B SQLite 持久化
+
+### 6.1 Migration 与行模型
+
+`0002_provider_circuit_breakers.sql` 新增以 `(provider_id, operation)` 为主键的
+`provider_circuit_breakers` 表，保存 M1-04A Snapshot 的全部字段，并额外保存：
+
+- `version`：非负 CAS 版本，初始为 `0`；
+- `updated_at`：由调用方显式 `now` 产生的 UTC 时间；
+- `idx_provider_circuit_breakers_state_open_until`：状态与到期窗口索引。
+
+Migration 不修改 0001；新数据库一次升级到 0002，现有 0001 数据库可无损升级，重复
+`initialize()` 幂等。SQL CHECK 固定状态、非负计数、0/1 probe、非负 version 和非空键；
+完整状态一致性仍由反序列化构造 `CircuitBreakerSnapshot` 再次验证，损坏行不会被修复。
+
+### 6.2 Repository 与 Store
+
+`CircuitBreakerRepository` 接收显式 `sqlite3.Connection`，只负责：
+
+- `load(key)`；
+- `create_closed(key, now=...)`；
+- `compare_and_swap(expected, after, updated_at=...)`；
+- Snapshot/UTC 时间序列化与损坏行拒绝。
+
+Repository 不 commit。`PersistedCircuitBreakerSnapshot` 将 Snapshot 与 version 分离，
+version 不进入 M1-04A 状态转换。
+
+`SQLiteCircuitBreakerStore` 接收 `Database`，提供：
+
+- `load()` / `load_or_create_closed()`；
+- `preflight(key, policy, now=...)`；
+- `record_success(..., expected_version, now=...)`；
+- `record_failure(..., expected_version, now=...)`；
+- `record_outcome(..., expected_version, now=...)`。
+
+每次状态写入执行 `WHERE provider_id=? AND operation=? AND version=?`，成功后 version 加一；
+影响零行时返回固定 `circuit_state_conflict` 或 `circuit_state_not_found`，不会覆盖新状态。
+
+### 6.3 原子 preflight
+
+到期 OPEN 的流程位于单一 `BEGIN IMMEDIATE` 事务：
+
+```text
+取得 SQLite reserved lock
+→ 读取最新 Snapshot + version
+→ M1-04A evaluate_circuit()
+→ OPEN 转 HALF_OPEN active probe
+→ CAS 写入 version + 1
+→ commit
+```
+
+第二个连接只能在首个事务提交后读取；它看到 HALF_OPEN active probe 后返回 skip，且不更新
+version。独立连接竞争测试固定为一个 probe、一个 skip，最终只有一行 HALF_OPEN active
+状态。正确性不依赖 sleep、随机退避或进程内锁。
+
+## 7. 未来编排顺序
 
 未来集成必须保持：
 
@@ -129,13 +186,15 @@ Router preflight
 ```
 
 OPEN 窗口内的 skip 必须发生在 Invoker 和物理调用预算扣减前，因此不调用 Provider、
-不消耗预算。M1-04A 未修改 `ProviderRouter`、Retry 或预算实现，只固定未来契约。
+不消耗预算。M1-04A/M1-04B 均未修改 `ProviderRouter`、Retry 或预算实现；Store 目前只能由
+离线测试显式调用。
 
-## 7. 未完成边界
+## 8. 未完成边界
 
-- SQLite schema、migration、Repository 和原子状态更新；
-- 跨进程状态共享、锁和真正的 half-open 原子探针；
 - Router、Retry、Fallback 或正式/Shadow 编排集成；
 - Provider 网络调用、恢复调度、sleep、退避或后台任务；
 - 限流、缓存、freshness 和生产观测；
 - 默认配置或正式 DataSource、Analyzer、Report、Notifier 变更。
+- 跨主机共享数据库或 SQLite 之外的分布式协调。
+
+下一任务 M1-05 才考虑 Tencent 进入 `provider_shadow`；M1-04B 本身不授权在线取数。

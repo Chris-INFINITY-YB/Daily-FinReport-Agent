@@ -1,5 +1,6 @@
 import sqlite3
 from contextlib import closing
+from importlib.resources import files
 
 import pytest
 
@@ -21,6 +22,7 @@ EXPECTED_TABLES = {
     "pipeline_runs",
     "provider_calls",
     "raw_responses",
+    "provider_circuit_breakers",
 }
 
 
@@ -32,12 +34,15 @@ def test_empty_database_upgrades_to_latest_schema(storage_db: Database) -> None:
                 "SELECT name FROM sqlite_master WHERE type = 'table'"
             )
         }
-        migration = connection.execute(
-            "SELECT version, name FROM schema_migrations"
-        ).fetchone()
+        migrations = connection.execute(
+            "SELECT version, name FROM schema_migrations ORDER BY version"
+        ).fetchall()
 
     assert EXPECTED_TABLES <= tables
-    assert tuple(migration) == (1, "initial")
+    assert [tuple(row) for row in migrations] == [
+        (1, "initial"),
+        (2, "provider_circuit_breakers"),
+    ]
 
 
 def test_database_object_does_not_create_file_until_explicit_connect(tmp_path) -> None:
@@ -57,7 +62,7 @@ def test_initialize_is_idempotent(storage_db: Database) -> None:
             "SELECT COUNT(*) FROM schema_migrations"
         ).fetchone()[0]
 
-    assert count == 1
+    assert count == 2
 
 
 def test_connection_enables_foreign_keys_and_file_wal(storage_db: Database) -> None:
@@ -77,6 +82,7 @@ def test_required_indexes_exist(storage_db: Database) -> None:
         "uq_news_source_external_id",
         "uq_news_source_content_hash",
         "idx_market_snapshots_security_time",
+        "idx_provider_circuit_breakers_state_open_until",
     }
     with closing(storage_db.connect()) as connection:
         indexes = {
@@ -87,6 +93,60 @@ def test_required_indexes_exist(storage_db: Database) -> None:
         }
 
     assert required <= indexes
+
+
+def test_migrations_are_discovered_in_version_order_and_packaged() -> None:
+    from daily_report_agent.storage.migrations import load_migrations
+
+    migrations = load_migrations()
+    resource = files("daily_report_agent.storage").joinpath(
+        "sql/0002_provider_circuit_breakers.sql"
+    )
+
+    assert [(item.version, item.name) for item in migrations] == [
+        (1, "initial"),
+        (2, "provider_circuit_breakers"),
+    ]
+    assert resource.is_file()
+    assert "CREATE TABLE provider_circuit_breakers" in resource.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_existing_0001_database_upgrades_without_losing_data(tmp_path) -> None:
+    from daily_report_agent.storage.migrations import load_migrations
+
+    database = Database(tmp_path / "upgrade.sqlite")
+    initial = load_migrations()[0]
+    with database.transaction() as connection:
+        apply_migrations(connection, (initial,))
+        connection.execute(
+            """
+            INSERT INTO securities(
+                market, symbol, name, created_at, updated_at
+            ) VALUES ('us', 'AAPL', 'Apple', 'created', 'updated')
+            """
+        )
+
+    database.initialize()
+
+    with closing(database.connect()) as connection:
+        security = connection.execute(
+            "SELECT market, symbol, name FROM securities"
+        ).fetchone()
+        migrations = connection.execute(
+            "SELECT version, name FROM schema_migrations ORDER BY version"
+        ).fetchall()
+        circuit_count = connection.execute(
+            "SELECT COUNT(*) FROM provider_circuit_breakers"
+        ).fetchone()[0]
+
+    assert tuple(security) == ("us", "AAPL", "Apple")
+    assert [tuple(row) for row in migrations] == [
+        (1, "initial"),
+        (2, "provider_circuit_breakers"),
+    ]
+    assert circuit_count == 0
 
 
 def test_failed_migration_rolls_back_all_schema_changes(tmp_path) -> None:

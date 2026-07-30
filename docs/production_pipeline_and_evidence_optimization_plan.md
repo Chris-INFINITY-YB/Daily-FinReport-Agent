@@ -211,11 +211,12 @@ Fallback 后必须保留：
 熔断粒度为 `provider_id + operation`，避免一个能力失败导致整个 Provider 被禁用。
 
 M1-04A 已完成独立的纯离线前置契约：不可变 CLOSED/OPEN/HALF_OPEN 快照、显式
-timezone-aware 时间转换、默认错误分类映射和单探针占用。该内核尚未接入 Router，
-没有 SQLite、真实 Provider 调用或跨进程原子性。未来 OPEN 检查必须在 Invoker 和调用
-预算扣减前完成；M1-04B 才考虑 SQLite 原子状态持久化。
+timezone-aware 时间转换、默认错误分类映射和单探针占用。M1-04B 已增加 0002 migration、
+Repository/Store、version/CAS 和 `BEGIN IMMEDIATE` 原子 preflight，并在两个独立 SQLite
+连接竞争下验证单探针。该 Store 尚未接入 Router，没有真实 Provider 调用；未来 OPEN
+检查仍必须在 Invoker 和调用预算扣减前完成。
 
-Cron 每次运行都是新进程，纯内存状态无法跨运行生效。建议在 SQLite 中持久化：
+Cron 每次运行都是新进程，纯内存状态无法跨运行生效。M1-04B 已在 SQLite 中持久化：
 
 - `state`: `closed/open/half_open`
 - `consecutive_failures`
@@ -224,6 +225,8 @@ Cron 每次运行都是新进程，纯内存状态无法跨运行生效。建议
 - `last_failure_at`
 - `last_success_at`
 - `last_error_code`
+- `half_open_probe_active`
+- `version` 与 `updated_at`
 
 `KeyboardInterrupt` 和 `SystemExit` 不计入 Provider 失败。日志、指标或熔断状态保存失败
 不得覆盖原始 Provider 结果。
@@ -521,7 +524,7 @@ Replay 必须满足：
 - [x] M1-04A 实现纯离线 Circuit Breaker 三态转换、显式时间和单探针契约；
 - [ ] 将 Router 接入正式/Shadow 编排；
 - [ ] 实现真实网络等待/Retry、退避调度和在线 Fallback；
-- [ ] M1-04B 实现 SQLite 原子 Circuit Breaker 持久化和跨进程探针预留；
+- [x] M1-04B 实现 SQLite 原子 Circuit Breaker 持久化和跨进程探针预留；
 - [ ] 实现限流、缓存 freshness 和审计事件；
 - [x] 使用纯离线 Fake Invoker/Result 覆盖 Router 状态转换；
 - [x] 默认仍为 `legacy`，另外两种模式在业务副作用前明确拒绝。

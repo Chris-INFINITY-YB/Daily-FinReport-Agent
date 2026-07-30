@@ -1,6 +1,6 @@
 # daily_report_agent 开发进度
 
-更新时间：2026-07-28
+更新时间：2026-07-30
 当前节点：阶段 2-B4 五日证据、合并候选完整离线回归及同候选受控在线验证均已通过；
 腾讯仍是默认关闭的 Shadow Provider，未进入正式或备用行情路由。并行 P1 的 Eastmoney
 CN Profile 离线骨架和验收入口已完成，但三次独立受控观察均在 `r.json()` 边界失败，
@@ -43,6 +43,9 @@ M1-02 已在该契约上增加仅供纯离线内部显式调用的泛型 `Provid
 Fallback，也未接入主链路。M1-04A 新增独立的纯离线 Circuit Breaker 转换内核，以
 `provider_id + operation` 隔离 CLOSED/OPEN/HALF_OPEN 状态、显式时间窗口和单探针
 占用；它尚未接入 Router、SQLite 或任何 Provider 调用，不具备跨进程安全。
+M1-04B 已为该内核增加版本化 SQLite 持久化、version/CAS 和 `BEGIN IMMEDIATE` 原子
+preflight，并在独立连接竞争下验证恰好一个 HALF_OPEN probe。该 Store 仍未接入 Router，
+没有调用任何 Provider，正式链路仍为 `legacy`。
 
 `daily_report_agent` 是一个面向多数据源、证据驱动分析的每日市场信息智能体。当前正式
 链路继续使用既有 DataSource；新的 Provider 能力采用契约化、离线测试和旁路观察逐步
@@ -96,6 +99,7 @@ Tencent QuoteProvider
 | M1-02：纯离线 ProviderRouter | 本地离线实现完成 | 串行状态机、RouteAttempt、总调用预算及 Fake Fallback 已完成；没有生产编排或网络调用 |
 | M1-03：纯离线 Retry 状态机 | 本地离线实现完成 | 类型驱动错误分类、Provider 内 RetryAttempt 轨迹和统一物理调用预算已完成；没有 sleep、网络 Retry 或主链路接入 |
 | M1-04A：纯离线 Circuit Breaker | 本地离线实现完成 | 不可变状态快照、显式时间转换、安全错误映射和单探针契约已完成；没有 Router 集成、持久化或跨进程原子性 |
+| M1-04B：SQLite Circuit Breaker | 本地离线实现完成 | 0002 migration、Repository/Store、version/CAS 与跨连接单探针已完成；尚未接入 Router 或在线 Provider |
 | 当前开发状态 | 冻结净新增 Provider，准备主链路迁移 | 优先建设新旧双跑、正式路由、高可用、结构化增量分析、Replay 和七日 Shadow；默认路由未改变 |
 
 ### 当前基线
@@ -108,7 +112,7 @@ Tencent QuoteProvider
 282 passed
 
 当前开发分支测试：
-743 passed（Python 3.10.20 / 3.13.9）
+791 passed（Python 3.10.20 / 3.13.9）
 
 P1-04B 开发分支 HEAD：
 ae55b9f2ca674a6744dd30c91e3316f400ce41a2
@@ -226,8 +230,9 @@ QuoteProvider 已通过正式验收，也不授权进入正式分析、报告、
   timeout、临时 network 和 unavailable 只有在策略允许、Provider 次数和全局预算均有
   余量时才离线重试。empty/partial 继续只由 M1-02 evaluator/fallback 契约处理，不会
   自动重复调用同一 Provider；
-- 当前没有业务 merger、真实网络等待或 Retry、网络 Fallback、Circuit Breaker、限流、
-  缓存或正式 Pipeline 接入；`provider_shadow/provider_primary` 仍在副作用前拒绝；
+- 当前没有业务 merger、真实网络等待或 Retry、网络 Fallback、Circuit Breaker Router
+  集成、限流、缓存或正式 Pipeline 接入；M1-04B 只有离线 SQLite 状态持久化，
+  `provider_shadow/provider_primary` 仍在副作用前拒绝；
 - Provider 迁移边界和字段证据详见
   [`docs/provider_migration.md`](docs/provider_migration.md)；Eastmoney CN Profile 的字段
   证据和在线边界详见

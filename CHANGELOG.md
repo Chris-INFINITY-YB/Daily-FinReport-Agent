@@ -11,6 +11,15 @@
 
 ### Added
 
+- 新增 M1-04B SQLite Circuit Breaker 持久化：
+  - 新增不可变 `PersistedCircuitBreakerSnapshot/PersistedCircuitTransition`，version 只用于
+    CAS，不进入 M1-04A 业务状态；
+  - 独立 `CircuitBreakerRepository` 负责安全 UTC 序列化、读取、幂等创建和条件更新，
+    Repository 不自行提交；
+  - `SQLiteCircuitBreakerStore` 使用显式 `BEGIN IMMEDIATE` 事务编排 preflight、success、
+    failure 和 outcome，所有转换仍调用 M1-04A 纯函数；
+  - 新增 `0002_provider_circuit_breakers.sql`，支持现有 0001 数据库无损升级和重复初始化；
+  - 两个独立 SQLite 连接竞争到期 OPEN 状态时，离线验证恰好一个获得 HALF_OPEN probe。
 - 新增 M1-04A 纯离线 Circuit Breaker 状态机：
   - 以安全规范化的 `provider_id + operation` 作为独立熔断粒度；
   - 不可变 `CircuitBreakerPolicy`、`CircuitBreakerSnapshot` 和
@@ -165,6 +174,9 @@
 
 ### Security
 
+- M1-04B 持久化错误使用封闭 `CircuitStorageErrorCode`，不公开 SQL、数据库路径或原始 row；
+  Store 不缓存状态、不调用系统时钟、不 sleep、不联网，也未接入 ProviderRouter。探针唯一性
+  由 SQLite 事务和 CAS 提供，不使用进程内全局锁。
 - M1-04A 快照和转换只保存安全 Provider ID、operation、封闭状态/原因、计数、
   timezone-aware 时间及 `RetryErrorCode`；不保存异常正文、URL、Header、Cookie、
   Token、响应或业务数据。模块不读取配置、环境变量、数据库或系统时钟，也未接入
@@ -207,6 +219,9 @@
 
 ### Validation
 
+- M1-04B 新增 `48` 项离线测试；包含既有回归的 M1-04B 定向范围为 `57 passed`，
+  M1-04A + M1-04B Circuit Breaker 范围为 `128 passed`，M1-01 至 M1-04B 路由与熔断
+  范围为 `263 passed`。Python 3.10.20 和 Python 3.13.9 完整测试均为 `791 passed`。
 - M1-04A 新增 `87` 项纯离线 Circuit Breaker 测试；M1-01 至 M1-04A 路由与熔断范围为
   `222 passed`，Python 3.10.20 和 Python 3.13.9 完整测试均为 `743 passed`。覆盖模型
   校验、三态转换、显式时间窗口、单探针、错误映射、敏感内容隔离、Router 未接入、

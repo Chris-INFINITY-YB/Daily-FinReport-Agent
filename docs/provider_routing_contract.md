@@ -1,16 +1,17 @@
-# Provider 路由、Retry 与 Circuit Breaker 契约（M1-01 至 M1-04A）
+# Provider 路由、Retry 与 Circuit Breaker 契约（M1-01 至 M1-04B）
 
 > 状态：Implemented — pure offline foundation
-> 日期：2026-07-28
-> 范围：Registry、ProviderRouter、错误分类、Retry、独立 Circuit Breaker 内核、统一预算、
-> 配置与模式门禁
+> 日期：2026-07-30
+> 范围：Registry、ProviderRouter、错误分类、Retry、Circuit Breaker 内核与 SQLite Store、
+> 统一预算、配置与模式门禁
 
 ## 1. 结论
 
 M1-01 建立确定、不可变、无 I/O 的选择契约；M1-02 增加仅供单元测试和纯离线内部入口
 显式调用的通用 `ProviderRouter`；M1-03 在 Router 内增加类型驱动错误分类、Provider
 内部 Retry 状态机和统一物理调用预算；M1-04A 新增尚未接入 Router 的纯离线 Circuit
-Breaker 转换内核。四项都不接管正式日报主链路，当前唯一正式可执行模式仍是 `legacy`：
+Breaker 转换内核；M1-04B 增加尚未接入 Router 的 SQLite 原子持久化。所有能力都不接管
+正式日报主链路，当前唯一正式可执行模式仍是 `legacy`：
 
 ```text
 legacy
@@ -27,9 +28,9 @@ provider_primary
 实际却得到旧链路报告或半成品报告。
 
 M1-02/M1-03 的“调用”只表示执行测试显式注入的 Fake Invoker，没有调用 Provider API。
-Retry 不执行 sleep、退避、抖动或网络等待。Circuit Breaker 不调用 Provider、不持久化，
-也不提供跨进程原子探针。当前没有 observed Fixture、真实网络 Retry/Fallback、限流、
-缓存或正式 Provider 编排。
+Retry 不执行 sleep、退避、抖动或网络等待。Circuit Breaker Store 已离线持久化并验证
+跨连接单探针，但不调用 Provider，也未接入 Router。当前没有 observed Fixture、真实网络
+Retry/Fallback、限流、缓存或正式 Provider 编排。
 
 ## 2. 配置契约
 
@@ -295,12 +296,13 @@ message、新闻正文、股票价格、数据库路径或动态扩展字段。
 
 Retry 审计另使用第 7 节列出的封闭 `RetryErrorCode`，不会把底层动态错误正文变成分类码。
 
-## 9. M1-04A Circuit Breaker 边界
+## 9. M1-04A/M1-04B Circuit Breaker 边界
 
-M1-04A 的完整转换契约见
+M1-04A/M1-04B 的完整转换和持久化契约见
 [`provider_circuit_breaker_contract.md`](provider_circuit_breaker_contract.md)。它复用
 M1-03 的 `ProviderErrorClass` 和 `RetryErrorCode`，但保持为独立纯函数模块，未修改
-`ProviderRouter` 或调用预算。
+`ProviderRouter` 或调用预算。M1-04B Store 使用 SQLite `BEGIN IMMEDIATE` 与 version/CAS
+保证到期 OPEN 的跨连接单探针预留。
 
 未来编排顺序固定为：
 
@@ -313,18 +315,18 @@ Router preflight
 → Fallback decision
 ```
 
-其中 OPEN 窗口内的 `skip` 必须发生在 Invoker 和预算扣减前。M1-04A 只固定该契约，
-没有实现上述集成、真实调用或预算逻辑。
+其中 OPEN 窗口内的 `skip` 必须发生在 Invoker 和预算扣减前。M1-04B 已持久化 preflight，
+但没有实现 Router 集成、真实调用或预算逻辑。
 
 ## 10. 未完成边界
 
-下列能力不属于 M1-01 至 M1-04A：
+下列能力不属于 M1-01 至 M1-04B：
 
 - Provider Shadow/Primary 编排；
 - 真实 Provider 实例装配或网络调用；
 - 部分结果业务合并；
 - 真实网络等待、退避、抖动、Retry 或在线 Fallback；
-- Circuit Breaker 的 Router 集成、SQLite 原子持久化和跨进程探针预留；
+- Circuit Breaker 的 Router/调用预算集成和生产运行编排；
 - 限流、缓存、freshness 和审计持久化；
 - 腾讯行情进入 Analyzer/Report/Notifier；
 - Eastmoney/CNInfo 在线接入；

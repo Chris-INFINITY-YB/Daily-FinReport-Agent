@@ -2,11 +2,16 @@ from contextlib import closing
 from datetime import datetime, timezone
 
 import pytest
+import sqlite3
 
 from daily_report_agent.models.market import MarketSnapshot
 from daily_report_agent.models.news import NewsItem
 from daily_report_agent.models.security import Security
-from daily_report_agent.storage.database import Database, RepositoryError
+from daily_report_agent.storage.database import (
+    Database,
+    RepositoryError,
+    StorageError,
+)
 from daily_report_agent.storage.repositories import (
     MarketSnapshotRepository,
     NewsRepository,
@@ -104,3 +109,114 @@ def test_repeated_complete_transaction_remains_idempotent(storage_db: Database) 
 
     assert ids[0] == ids[1]
     assert counts == (1, 1, 1, 1)
+
+
+def test_immediate_transaction_commits(storage_db: Database) -> None:
+    with storage_db.immediate_transaction() as connection:
+        connection.execute(
+            """
+            INSERT INTO provider_circuit_breakers(
+                provider_id, operation, state, consecutive_failures,
+                last_transition_at, half_open_probe_active, version, updated_at
+            ) VALUES ('fixture', 'fetch', 'closed', 0, 'time', 0, 0, 'time')
+            """
+        )
+
+    with closing(storage_db.connect()) as connection:
+        count = connection.execute(
+            "SELECT COUNT(*) FROM provider_circuit_breakers"
+        ).fetchone()[0]
+    assert count == 1
+
+
+def test_immediate_transaction_rolls_back_sqlite_error(
+    storage_db: Database,
+) -> None:
+    with pytest.raises(StorageError, match="事务执行失败"):
+        with storage_db.immediate_transaction() as connection:
+            connection.execute(
+                """
+                INSERT INTO provider_circuit_breakers(
+                    provider_id, operation, state, consecutive_failures,
+                    last_transition_at, half_open_probe_active, version,
+                    updated_at
+                ) VALUES ('fixture', 'fetch', 'closed', 0, 'time', 0, 0, 'time')
+                """
+            )
+            connection.execute("THIS IS NOT SQL")
+
+    with closing(storage_db.connect()) as connection:
+        count = connection.execute(
+            "SELECT COUNT(*) FROM provider_circuit_breakers"
+        ).fetchone()[0]
+    assert count == 0
+
+
+def test_immediate_transaction_rolls_back_regular_exception(
+    storage_db: Database,
+) -> None:
+    with pytest.raises(RuntimeError, match="force rollback"):
+        with storage_db.immediate_transaction() as connection:
+            connection.execute(
+                """
+                INSERT INTO provider_circuit_breakers(
+                    provider_id, operation, state, consecutive_failures,
+                    last_transition_at, half_open_probe_active, version,
+                    updated_at
+                ) VALUES ('fixture', 'fetch', 'closed', 0, 'time', 0, 0, 'time')
+                """
+            )
+            raise RuntimeError("force rollback")
+
+    with closing(storage_db.connect()) as connection:
+        count = connection.execute(
+            "SELECT COUNT(*) FROM provider_circuit_breakers"
+        ).fetchone()[0]
+    assert count == 0
+
+
+class _TrackingConnection(sqlite3.Connection):
+    closed = False
+    rolled_back = False
+    fail_commit = False
+
+    def commit(self) -> None:
+        if self.fail_commit:
+            raise sqlite3.OperationalError("unsafe commit details")
+        super().commit()
+
+    def rollback(self) -> None:
+        self.rolled_back = True
+        super().rollback()
+
+    def close(self) -> None:
+        self.closed = True
+        super().close()
+
+
+def test_immediate_transaction_closes_connection(monkeypatch, tmp_path) -> None:
+    database = Database(tmp_path / "unused.sqlite")
+    connection = sqlite3.connect(":memory:", factory=_TrackingConnection)
+    monkeypatch.setattr(database, "connect", lambda: connection)
+
+    with database.immediate_transaction():
+        pass
+
+    assert connection.closed is True
+
+
+def test_immediate_commit_failure_rolls_back_and_closes(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    database = Database(tmp_path / "unused.sqlite")
+    connection = sqlite3.connect(":memory:", factory=_TrackingConnection)
+    connection.fail_commit = True
+    monkeypatch.setattr(database, "connect", lambda: connection)
+
+    with pytest.raises(StorageError, match="事务提交失败"):
+        with database.immediate_transaction():
+            pass
+
+    assert connection.rolled_back is True
+    assert connection.closed is True
