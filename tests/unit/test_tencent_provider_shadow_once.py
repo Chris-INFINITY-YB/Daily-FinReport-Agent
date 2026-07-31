@@ -17,6 +17,99 @@ ROOT = Path(__file__).parents[2]
 ONLINE_MODULE = "daily_report_agent.providers.tencent.online_transport"
 
 
+def _run_module(*args: str, import_trace: bool = False):
+    command = [sys.executable]
+    if import_trace:
+        command.extend(["-X", "importtime"])
+    command.extend(["-m", "scripts.tencent_provider_shadow_once", *args])
+    return subprocess.run(
+        command,
+        cwd=ROOT,
+        env=dict(os.environ, PYTHONDONTWRITEBYTECODE="1"),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def _assert_database_family_absent(database: Path) -> None:
+    assert not database.exists()
+    assert not Path(f"{database}-wal").exists()
+    assert not Path(f"{database}-shm").exists()
+
+
+def _assert_online_boundaries_not_loaded(stderr: str) -> None:
+    assert ONLINE_MODULE not in stderr
+    assert "daily_report_agent.storage.database" not in stderr
+    assert not any(
+        line.rstrip().endswith((" requests", "| requests"))
+        for line in stderr.splitlines()
+    )
+
+
+def test_module_entrypoint_missing_gate_refuses_before_all_side_effects(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "must-not-exist.sqlite"
+    completed = _run_module(
+        "--database",
+        str(database),
+        import_trace=True,
+    )
+    assert completed.returncode == 2
+    assert completed.stdout == ""
+    assert completed.stderr.rstrip().endswith(
+        "refused: --allow-network-once is required"
+    )
+    _assert_online_boundaries_not_loaded(completed.stderr)
+    _assert_database_family_absent(database)
+
+
+def test_module_entrypoint_help_is_offline_and_exits_zero(tmp_path: Path) -> None:
+    database = tmp_path / "must-not-exist.sqlite"
+    completed = _run_module("--help", import_trace=True)
+    assert completed.returncode == 0
+    assert "--allow-network-once" in completed.stdout
+    assert "--database" in completed.stdout
+    _assert_online_boundaries_not_loaded(completed.stderr)
+    _assert_database_family_absent(database)
+
+
+def test_module_entrypoint_invalid_values_refuse_before_online_boundaries(
+    tmp_path: Path,
+) -> None:
+    sensitive = "https://user:token@example.test/response-body"
+    cases = (
+        ("--symbols", sensitive),
+        ("--timeout", "10.1"),
+    )
+    for index, invalid in enumerate(cases):
+        database = tmp_path / f"invalid-{index}.sqlite"
+        completed = _run_module(
+            "--allow-network-once",
+            "--database",
+            str(database),
+            *invalid,
+            import_trace=True,
+        )
+        assert completed.returncode == 2
+        assert completed.stdout == ""
+        assert completed.stderr.rstrip().endswith(
+            (
+                "refused: M1-05B 证券集合或顺序不符合固定门禁"
+                if invalid[0] == "--symbols"
+                else "refused: timeout 必须大于 0 且不超过 10 秒"
+            )
+        )
+        refusal = completed.stderr.splitlines()[-1]
+        assert str(database) not in refusal
+        assert sensitive not in refusal
+        assert "token" not in refusal
+        assert "response-body" not in refusal
+        _assert_online_boundaries_not_loaded(completed.stderr)
+        _assert_database_family_absent(database)
+
+
 def test_missing_network_gate_refuses_before_database_or_online_import(
     tmp_path: Path,
 ) -> None:
@@ -24,8 +117,17 @@ def test_missing_network_gate_refuses_before_database_or_online_import(
     code = f"""
 import sys
 from scripts.tencent_provider_shadow_once import run_once
-result = run_once(['--database', {str(database)!r}])
+calls = 0
+def unexpected_executor(**kwargs):
+    global calls
+    calls += 1
+    raise AssertionError('logical Provider call must remain zero')
+result = run_once(
+    ['--database', {str(database)!r}],
+    executor=unexpected_executor,
+)
 assert result == 2
+assert calls == 0
 assert {ONLINE_MODULE!r} not in sys.modules
 assert 'daily_report_agent.storage.database' not in sys.modules
 """
@@ -38,7 +140,7 @@ assert 'daily_report_agent.storage.database' not in sys.modules
         check=False,
     )
     assert completed.returncode == 0, completed.stderr
-    assert not database.exists()
+    _assert_database_family_absent(database)
 
 
 def test_fixed_symbols_timeout_and_fresh_external_database_are_required(
@@ -46,6 +148,13 @@ def test_fixed_symbols_timeout_and_fresh_external_database_are_required(
 ) -> None:
     existing = tmp_path / "existing.sqlite"
     existing.touch()
+    executor_calls = 0
+
+    def unexpected_executor(**kwargs):
+        nonlocal executor_calls
+        executor_calls += 1
+        raise AssertionError("logical Provider call must remain zero")
+
     cases = [
         [
             "--allow-network-once",
@@ -73,7 +182,8 @@ def test_fixed_symbols_timeout_and_fresh_external_database_are_required(
         ],
     ]
     for argv in cases:
-        assert once.run_once(argv) == 2
+        assert once.run_once(argv, executor=unexpected_executor) == 2
+    assert executor_calls == 0
 
 
 def test_fake_executor_receives_strict_gate_without_loading_online_transport(
