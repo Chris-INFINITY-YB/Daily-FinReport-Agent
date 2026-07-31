@@ -19,6 +19,7 @@ from datetime import datetime
 import yaml
 
 from . import analyzer, report
+from .config import parse_provider_routing_settings
 from .datasource.base import get_source, StockData
 from .ingestion.adapters import stockdata_to_analysis_input
 from .models.analysis import AnalysisInput
@@ -27,7 +28,10 @@ from .pipeline.runner import (
     persist_analysis_input,
     start_run_context,
 )
-from .pipeline.tencent_quote_shadow import maybe_run_tencent_quote_shadow
+from .pipeline.tencent_provider_shadow import (
+    run_tencent_provider_shadow_from_config,
+    validate_tencent_provider_shadow_gate,
+)
 
 
 DRY_RUN_ANALYSIS = (
@@ -83,13 +87,48 @@ def _section_pct_change(analysis_input: AnalysisInput) -> float | None:
     return None
 
 
-def run(config_path: str, do_notify: bool, dry_run: bool):
-    # dry-run 不读取本机 .env，确保测试结果与用户密钥完全隔离。
-    if not dry_run:
-        load_env()
+def run(
+    config_path: str,
+    do_notify: bool,
+    dry_run: bool,
+    *,
+    allow_provider_shadow: bool = False,
+):
     cfg = load_config(config_path)
     if not isinstance(cfg, dict):
         raise ValueError("配置文件顶层必须是 YAML 映射")
+    route_settings = parse_provider_routing_settings(cfg)
+    shadow_gate = validate_tencent_provider_shadow_gate(
+        config=cfg,
+        config_path=config_path,
+        routing=route_settings,
+        allow_provider_shadow=allow_provider_shadow,
+        dry_run=dry_run,
+    )
+    if shadow_gate is not None:
+        try:
+            shadow_result = run_tencent_provider_shadow_from_config(
+                gate=shadow_gate,
+                config_path=config_path,
+                watchlist=cfg.get("watchlist", ()),
+            )
+        except Exception:
+            print(
+                "[Provider Shadow] "
+                "status=failed items=0 issues=1 "
+                "error=shadow_orchestration_failed"
+            )
+        else:
+            print(
+                "[Provider Shadow] "
+                f"status={shadow_result.status.value} "
+                f"items={shadow_result.item_count} "
+                f"issues={shadow_result.issue_count} "
+                f"error={shadow_result.safe_error_code or 'none'}"
+            )
+    # dry-run 不读取本机 .env，确保测试结果与用户密钥完全隔离。
+    if not dry_run:
+        load_env()
     data_cfg = cfg.get("data", {})
     news_days = data_cfg.get("news_days", 7)
     max_news = data_cfg.get("max_news_per_stock", 15)
@@ -98,12 +137,6 @@ def run(config_path: str, do_notify: bool, dry_run: bool):
     partial = run_context.storage_failed
 
     try:
-        maybe_run_tencent_quote_shadow(
-            config=cfg,
-            watchlist=cfg.get("watchlist", ()),
-            run_context=run_context,
-            dry_run=dry_run,
-        )
         llm = None if dry_run else build_llm(cfg)
         sections = []
         for item in cfg.get("watchlist", []):
@@ -169,6 +202,11 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--config", default=os.path.join(os.path.dirname(__file__), "config.yaml"))
     ap.add_argument("--no-notify", action="store_true", help="不推送")
     ap.add_argument("--dry-run", action="store_true", help="不联网/不调 LLM, 验证链路")
+    ap.add_argument(
+        "--allow-provider-shadow",
+        action="store_true",
+        help="显式允许已配置的 Provider Shadow（不启用 provider_primary）",
+    )
     return ap
 
 
@@ -179,7 +217,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        run(args.config, do_notify=not args.no_notify, dry_run=args.dry_run)
+        run(
+            args.config,
+            do_notify=not args.no_notify,
+            dry_run=args.dry_run,
+            allow_provider_shadow=args.allow_provider_shadow,
+        )
     except Exception as exc:
         print(f"[错误] {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1

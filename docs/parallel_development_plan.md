@@ -1,7 +1,11 @@
 # B4 观测并行开发与合并门禁计划
 
-更新时间：2026-07-27
+更新时间：2026-07-28
 适用范围：腾讯 QuoteProvider 阶段 2-B4 及合并候选门禁完成后的暂停与后续开发边界
+
+> 状态：**Historical / Completed Scope**。本文件继续保存 B4、P1、P2 并行开发的任务、
+> 证据和门禁记录，不再决定 P1-04B 之后的当前优先级。当前活跃路线见
+> [`production_pipeline_and_evidence_optimization_plan.md`](production_pipeline_and_evidence_optimization_plan.md)。
 
 ## 1. 结论与执行原则
 
@@ -402,7 +406,7 @@ P4 可与 P1～P3 穿插，但每项应单独提交。
 9. Prompt 和固定日期 dry-run 回归哈希保持不变；
 10. 变更已按单一职责提交，能够独立回退。
 
-## 6. 建议实施顺序
+## 6. 历史建议实施顺序
 
 ```text
 P0 基线隔离
@@ -418,8 +422,11 @@ B4 腾讯连续观测（已完成）
   → 另立任务决定是否启动正式接入设计
 ```
 
-推荐先执行 P0 和 P1。它们与腾讯 Shadow 的共享面最小，能够最快验证并行开发流程是否
-稳定；P2 随后提供项目最关键的可追溯新闻证据能力。
+上述顺序记录 B4 期间采用的历史安排。P1-04B 已于 2026-07-28 完成纯离线骨架及本地、
+远端双版本门禁；从该节点起暂停 P1-04C、P3 和其他净新增 Provider，优先建设可回退的
+新旧链路双跑、正式路由、结构化增量分析、Replay 和七日 Shadow。当前顺序及验收标准以
+[`production_pipeline_and_evidence_optimization_plan.md`](production_pipeline_and_evidence_optimization_plan.md)
+为准。
 
 ## 7. B4 结束后的合并门禁
 
@@ -441,18 +448,25 @@ B4 五日证据和候选门禁均已通过，完整记录见
 
 ## 8. 当前远端验收状态
 
-截至 2026-07-27，P4-00 与 P4-01 已完成本地验收，P4-01R 验收提交
+截至 2026-07-28，P4-00 与 P4-01 已完成本地验收，P4-01R 验收提交
 `b7fa7386b211579aaa1999f415acc9da07436119` 的 Python 3.10/3.13 本地完整离线测试
 各为 `407 passed`，工作区无 Python 生成物。GitHub Actions 运行
 [`30193535946`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30193535946)
 的两个矩阵 Job 也均为 `407 passed`，远端 compileall 与工作区清洁门禁通过。P4-01
 已通过 merge commit `2eeec791a0494b78359d67dd4e0875e81d138cd7` 进入 `main`；合并后
 自动运行 `30249579799` 和手动复核运行 `30249744777` 的 Python 3.10/3.13 Job 均成功。
-P4-01 不再处于远端待验证状态，但该结果不扩大后续任务授权：
+P1-04B HEAD `ae55b9f2ca674a6744dd30c91e3316f400ce41a2` 的 push 运行
+[`30336191293`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30336191293)
+和 pull_request 运行
+[`30336306008`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30336306008)
+也均通过 Python 3.10/3.13 全部步骤；Draft
+[`PR #6`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/pull/6)
+保持未合并。上述结果不扩大 Provider 的在线或生产授权：
 
 - 不再使用相同入口在线尝试 Eastmoney Profile；P1-04A 评估与 P1-04B `cninfo` 离线
   骨架现已完成；P1-04C 仍须先确认许可并另获在线授权；
-- 不启动 P2-04 在线观察或 P3 开发；
-- 不设计或启用腾讯正式路由、降级、缓存、限流、重试或熔断；
+- 按当前范围冻结暂停 P1-04C、P2-04 在线观察、P3 和其他净新增 Provider；
+- 正式路由、降级、缓存、限流、重试和熔断只允许按新的活跃优化计划分阶段设计、离线
+  验收和 Shadow 验证，不因本次 P1-04B 门禁自动启用；
 - 不修改默认关闭配置；
 - P1-04 仍未完成，任何 Provider 均未因本次 CI 验收而晋级。

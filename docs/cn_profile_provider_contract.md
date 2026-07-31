@@ -271,8 +271,20 @@ supported_news_types: {}
 P1-04B 没有调用任何 Provider 数据 API，没有导入或执行 AkShare/pandas，没有实现在线
 Transport，也没有修改 `CNDataSource`、配置、Pipeline、Analyzer、Prompt、Report、
 通知、数据库、腾讯 Quote Shadow 或正式路由。P1-04 总项继续未完成，P2-04 和 P3 状态
-不变。下一门禁是 P1-04C：必须先确认自动化访问与最小脱敏 Fixture 保存许可，再取得
-单独受控在线授权；本节不表示上述许可已获得。
+不变。
+
+P1-04B HEAD `ae55b9f2ca674a6744dd30c91e3316f400ce41a2` 在 Python 3.10.20 和 3.13.9
+本地完整离线测试均为 `521 passed`；GitHub Actions push
+[`30336191293`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30336191293)
+和 pull_request
+[`30336306008`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30336306008)
+的双版本 Job 也均通过。Draft
+[`PR #6`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/pull/6)
+保持未合并。
+
+P1-04C 仍是 Profile 证据升级的下一门禁：必须先确认自动化访问与最小脱敏 Fixture 保存
+许可，再取得单独受控在线授权；本节不表示上述许可已获得。按当前活跃优化路线，P1-04C
+暂时冻结，优先实施主链路迁移、结构化增量分析、Replay 和七日 Shadow。
 
 ### 3.10 P1-05 显式离线验收入口
 

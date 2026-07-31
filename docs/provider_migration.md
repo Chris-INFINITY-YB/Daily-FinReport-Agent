@@ -1,5 +1,9 @@
 # Provider 迁移边界（阶段 2-A）
 
+> 状态：本文件保留阶段 2-A 至 2-B4 的迁移事实、字段语义和历史门禁。当前生产结构仍未
+> 被新 Provider 接管；P1-04B 后的活跃迁移顺序见
+> [`production_pipeline_and_evidence_optimization_plan.md`](production_pipeline_and_evidence_optimization_plan.md)。
+
 ## 当前生产结构
 
 生产链路保持为：
@@ -81,7 +85,7 @@ MarketSnapshot ≠ PriceWindow
 也不能把 `MarketSnapshot.pct_change` 填入 `PriceWindow.period_pct_change`。历史行情能力
 需要在后续阶段另行设计，不能塞入当前 Quote Protocol。
 
-## 后续迁移顺序
+## 阶段 2-A 当时确定的迁移顺序
 
 1. 2-B1：腾讯 `QuoteProvider` 离线实现与契约测试（已完成）。
 2. 2-B2：腾讯 `QuoteProvider` 受控在线冒烟。
@@ -90,6 +94,11 @@ MarketSnapshot ≠ PriceWindow
 5. 2-E：Provider 编排、降级和 `provider_calls` 接入。
 
 在 2-E 之前不允许伪造或写入 `provider_calls`。
+
+上述顺序是阶段 2-A 的历史决策。腾讯 Shadow 后续已经按独立编排写入真实
+`provider_calls`，但仍未进入正式业务路由。从 P1-04B 起，项目冻结净新增 Provider，
+优先实施新旧双跑、正式路由、高可用、结构化增量分析、Replay 和七日 Shadow；不得把
+历史顺序解释为当前仍应先扩充 Provider。
 
 ## 阶段 2-B1：腾讯 QuoteProvider 离线状态
 

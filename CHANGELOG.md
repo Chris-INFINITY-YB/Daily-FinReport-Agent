@@ -11,6 +11,93 @@
 
 ### Added
 
+- 建立 M1-05D 远端双版本 CI/PR 门禁：
+  - 将 `codex/m1-05a-tencent-provider-shadow` 推送到同名远端分支；
+  - PR #6 已合并且 P1-04B HEAD 已进入 `main` 祖先链，因此创建以 `main` 为 base、
+    当前 M1 分支为 head 的 Draft
+    [`PR #7`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/pull/7)，没有
+    rebase、cherry-pick、历史重写或 P1-04B 重复 diff；
+  - 首轮验收 HEAD `924ce20b0e0a424c909da593458f9f70584c0ce2` 的 push run
+    `30599131830` 和 pull_request run `30599713228` 均通过。
+- 固化 M1-05B Tencent 新 Router 首次受控在线验收：
+  - 2026-07-31 在精确 HEAD `9dab42ea03370e6828f429aa3890d7c0ab3fb724` 固定
+    `600519、300750、000001`，完成 1 次逻辑调用和 1 次 HTTP 请求；
+  - Retry、Fallback、并发均为 0，timeout 为 10 秒，返回 3 项且错误为 0；
+  - 独立 SQLite 中 PipelineRun/ProviderCall/Circuit 为 1/1/1，
+    Security/MarketSnapshot 为 3/3，RawResponse 为 0，Circuit 为 closed；
+  - integrity/foreign key、重复业务键和孤儿快照检查通过，临时库 SHA-256 为
+    `ff9d427178a7134ef145cf7aeebe972f1ba8a5f7cd6d7954a021ea4793cc88b7`，验收后数据库、
+    WAL 和 SHM 已删除；
+  - 该证据与历史 B4 Shadow 成功及 M1-05A 纯离线装配明确分离，不表示生产 SLA、
+    `provider_primary`、正式/备用路由或七日 Shadow 完成。
+- 新增真实模块入口纯离线回归，直接启动
+  `python -m scripts.tencent_provider_shadow_once`，覆盖缺少授权开关、非法证券、
+  非法 timeout 和 help；固定退出码、数据库/WAL/SHM 零创建、在线 Transport 与
+  `requests` 零提前加载及安全错误输出。
+- 新增 M1-05A Tencent ProviderRouter Shadow 纯离线装配：
+  - 新增独立 `tencent_provider_shadow` 编排边界，固定
+    Registry → Circuit preflight → 单候选 Router → ProviderCall/Snapshot →
+    Circuit outcome → legacy 日报顺序；
+  - Registry 只注册 `tencent-finance/QUOTE/cn/shadow_eligible`，RoutePolicy 总调用预算为
+    1，RetryPolicy 每 Provider 最大尝试为 1，不允许 legacy 或第二网络 Provider Fallback；
+  - 腾讯结果 evaluator 区分 success/empty/partial/failed，部分结果保留有效
+    `MarketSnapshot`，不生成 `PriceWindow`；
+  - 独立 Shadow SQLite 复用现有 PipelineRun、ProviderCall、Security、MarketSnapshot
+    和 Circuit schema，不保存 RawResponse 正文；
+  - 新增
+    [`docs/tencent_provider_shadow_contract.md`](docs/tencent_provider_shadow_contract.md)
+    固定模式门禁、预算、Circuit、持久化和 M1-05B 授权边界。
+- 新增 M1-04B SQLite Circuit Breaker 持久化：
+  - 新增不可变 `PersistedCircuitBreakerSnapshot/PersistedCircuitTransition`，version 只用于
+    CAS，不进入 M1-04A 业务状态；
+  - 独立 `CircuitBreakerRepository` 负责安全 UTC 序列化、读取、幂等创建和条件更新，
+    Repository 不自行提交；
+  - `SQLiteCircuitBreakerStore` 使用显式 `BEGIN IMMEDIATE` 事务编排 preflight、success、
+    failure 和 outcome，所有转换仍调用 M1-04A 纯函数；
+  - 新增 `0002_provider_circuit_breakers.sql`，支持现有 0001 数据库无损升级和重复初始化；
+  - 两个独立 SQLite 连接竞争到期 OPEN 状态时，离线验证恰好一个获得 HALF_OPEN probe。
+- 新增 M1-04A 纯离线 Circuit Breaker 状态机：
+  - 以安全规范化的 `provider_id + operation` 作为独立熔断粒度；
+  - 不可变 `CircuitBreakerPolicy`、`CircuitBreakerSnapshot` 和
+    `CircuitTransition` 固定 CLOSED/OPEN/HALF_OPEN、显式打开窗口与单探针语义；
+  - 所有转换均由调用方传入 timezone-aware `now`，不读取系统时钟、不 sleep、不联网；
+  - 复用 M1-03 `ProviderErrorClass/RetryErrorCode`，将 Provider 失败映射为 counted、
+    immediate-open 或 neutral，不检查异常正文；
+  - 新增
+    [`docs/provider_circuit_breaker_contract.md`](docs/provider_circuit_breaker_contract.md)
+    记录转换表、时间边界和 M1-04B 持久化前置条件。
+- 新增 M1-03 纯离线 Provider Retry 状态机：
+  - 封闭 `ProviderErrorClass`、`RetryErrorCode`、`RetryDecision` 和
+    `RetryReasonCode`，分类只依赖异常类型，不读取异常正文、URL、Header 或响应；
+  - 不可变 `RetryPolicy` 默认 `max_attempts_per_provider=1`，保持 M1-02 行为；
+    rate limit 和普通未知异常默认不重试，只有显式策略才允许；
+  - 每个候选仍只产生一个 `RouteAttempt`，其中每次物理 Invoker 调用形成一个不可变
+    `RetryAttempt`，Provider 内序号和全局调用序号均严格递增；
+  - Retry、Fallback Provider 首次调用和后续 Retry 共用唯一物理调用预算，进入 Invoker
+    前扣减；skipped、evaluator 和纯分类不消耗预算；
+  - empty/partial 不触发传输 Retry，继续沿用 M1-02 的 evaluator 与 Fallback 契约；
+    evaluator、非法结果和协议失败不重试。
+- 新增 M1-02 纯离线通用 `ProviderRouter[T]` 状态机：
+  - 只接受显式注入的 Registry、RoutePolicy、同步 Invoker 和纯 ResultEvaluator；
+  - 封闭 `success/empty/partial/failed/skipped` 终态与不可变 `RouteAttempt`；
+  - 每个候选最多调用一次，严格串行；真实 Invoker 调用在进入边界前消耗一个总预算，
+    skipped 不消耗预算，结果公开已用和剩余预算；
+  - empty fallback 由 RoutePolicy 控制，partial fallback 由能力专属 evaluator 控制，
+    已判定结果保留在 `retained_results`，本任务不实现业务合并；
+  - 标准 ProviderError、普通异常、evaluator 失败和非法结果具有固定安全失败语义，
+    `KeyboardInterrupt`/`SystemExit` 继续传播。
+- 新增 M1-01 Provider 正式路由纯离线基础：
+  - 封闭 `legacy/provider_shadow/provider_primary` 模式，旧配置缺失时仍默认为
+    `legacy`；
+  - 独立 `ProviderRegistry` 以 provider ID、capability、market、priority、enabled 和
+    runtime stage 注册、校验和确定性查询；
+  - 不可变 `RoutePolicy`、泛型 `RouteResult`、封闭终态/安全错误码和无 I/O
+    `select_route()`；
+  - `offline_only` 不可进入生产选择，Shadow/Production 候选精确隔离，disabled 候选
+    不可选；
+  - 新增
+    [`docs/provider_routing_contract.md`](docs/provider_routing_contract.md) 记录阶段门禁、
+    配置、排序、预算、fallback 和未完成边界。
 - 补齐 `ProfileProvider` Protocol 契约测试，固定标准 `Security` 输入、
   `ProviderResult[SecurityProfile]` 返回，以及成功空结果与请求失败的区别。
 - 新增 Eastmoney CN Profile Provider 纯离线骨架：
@@ -76,9 +163,28 @@
   - 仅接入现有腾讯 Quote Shadow 编排边界，未接入 Eastmoney 或正式 Provider 路由。
 - 新增 Provider 指标与安全日志设计文档
   [`docs/provider_metrics_and_safe_logging.md`](docs/provider_metrics_and_safe_logging.md)。
+- 新增当前活跃的
+  [`主链路迁移与证据驱动优化实施方案`](docs/production_pipeline_and_evidence_optimization_plan.md)：
+  - P1-04B 后冻结净新增 Provider，优先完成新旧链路双跑和可回退的正式路由；
+  - 定义 Registry、能力级 Retry/Fallback、持久化 Circuit Breaker、限流和缓存边界；
+  - 固定 Tencent `MarketSnapshot` 与旧历史 `PriceWindow` 不可静默互换的金融语义；
+  - 定义版本化 Pydantic 事件、程序控制的 evidence ID、处理账本和增量事件更新；
+  - 定义可审计报告、Telegram 文件推送、历史 Replay、七日 Shadow 和旧链路删除门禁。
 
 ### Changed
 
+- Tencent 新 Router 单次验收的唯一官方入口统一为
+  `python -m scripts.tencent_provider_shadow_once`；直接文件入口
+  `python scripts/tencent_provider_shadow_once.py` 不再作为文档运行方式。
+- `pipeline` 新增默认 `null` 的 `provider_shadow_database_path`，`data_route` 保持
+  `legacy`；
+  `storage.enabled=false` 和 `providers.tencent_quote.shadow_enabled=false` 保持不变。
+- `provider_primary` 继续在所有副作用前拒绝。`provider_shadow` 必须同时满足
+  `shadow_enabled=true`、显式 `--allow-provider-shadow`、非 dry-run 和独立数据库路径，
+  任何门禁缺失均在 `.env`、数据库、Transport、LLM 和报告前安全拒绝。
+- `legacy` 不再触发历史配置式腾讯 Shadow 旁路；历史 B4 专用入口、证据和文档保持不变。
+  M1-05A Shadow 无论 success/empty/partial/failed/skipped 都与正式 Pipeline 状态隔离，
+  并继续运行既有 legacy 日报。
 - `daily_report_agent.providers` 顶层安全导出 Eastmoney Profile/News 与 CNInfo Profile
   Descriptor/Provider。
 - `pyproject.toml` 的显式 package 列表包含
@@ -90,6 +196,10 @@
   安装/验证命令和当前开发分支测试基线。
 - 路线图将 P1-04A 标记为“决策已接受”、P1-04B 标记为“离线骨架完成”；P1-04、
   P2-04 和 P3 状态均未改变。
+- 当前优先级从继续扩充 Provider 调整为主链路迁移、结构化增量分析、审计报告、Replay
+  和七日 Shadow；P1-04C、P3 及其他净新增 Provider 暂停，默认正式路由仍未改变。
+- `daily_report_agent/OPTIMIZATION_PLAN.md` 标记为 2026-07-13 历史方案；当前状态以
+  `README.md` 为准，当前实施顺序和切换门禁以新优化实施方案为准。
 - 腾讯 Shadow 汇总 `main()` 支持注入 timezone-aware clock；CLI 默认仍使用当前 UTC，
   测试使用固定时间，从而消除固定 2026-07-14 Fixture 随系统日期移出 7 日窗口的问题。
   naive 或非 datetime clock 会被安全拒绝，7 日窗口和原有汇总兼容断言保持不变。
@@ -107,6 +217,37 @@
 
 ### Security
 
+- M1-05D 只访问 GitHub remote、PR 和 Actions，没有运行任何 Provider API、M1-05B
+  入口或 allow-network 开关，没有创建行情数据库或读取具体行情值。
+- Draft PR #7 保持 `legacy` 默认路由和全部生产边界；远端门禁成功不授权
+  `provider_primary`、腾讯正式/备用路由、Analyzer/Prompt/Report/Notifier 接入或七日
+  Shadow。
+- M1-05C 没有再次发送网络请求。首次 M1-05B 直接文件入口尝试在项目包导入前以
+  `ModuleNotFoundError` 失败，HTTP/Provider/逻辑调用均为 0，数据库/WAL/SHM 均未创建，
+  因此不计入在线请求；修正后的模块入口执行是 M1-05B 唯一真实在线请求。
+- M1-05B 验收记录不包含具体行情值、原始响应、完整请求 URL、Header、Cookie、Token
+  或未脱敏异常正文。
+- M1-05A 全部新增测试使用 Fake/Fixture，未发送网络请求。在线 Transport 仅在五重门禁和
+  Circuit allow/probe 后由 Invoker 惰性构造；legacy、dry-run、缺 CLI 开关、缺独立路径、
+  OPEN skip 和 Circuit Store 失败路径均不加载在线 Transport。
+- Shadow SQLite 与正式数据库路径必须不同；只保存安全请求指纹、聚合计数和封闭错误码，
+  `retry_count=0`、`raw_responses=0`，不保存 URL、Header、Cookie、Token 或响应正文。
+- M1-04B 持久化错误使用封闭 `CircuitStorageErrorCode`，不公开 SQL、数据库路径或原始 row；
+  Store 不缓存状态、不调用系统时钟、不 sleep、不联网，也未接入 ProviderRouter。探针唯一性
+  由 SQLite 事务和 CAS 提供，不使用进程内全局锁。
+- M1-04A 快照和转换只保存安全 Provider ID、operation、封闭状态/原因、计数、
+  timezone-aware 时间及 `RetryErrorCode`；不保存异常正文、URL、Header、Cookie、
+  Token、响应或业务数据。模块不读取配置、环境变量、数据库或系统时钟，也未接入
+  ProviderRouter。
+- M1-03 Retry 审计只允许 Provider ID、固定索引、封闭终态、错误码/分类和决策原因；
+  不保存 URL、Header、Cookie、Token、原始响应、HTTP 正文、Exception message、证券价格、
+  新闻正文、数据库路径或动态字段。没有 sleep、等待、抖动、真实网络 Retry 或隐式状态。
+- M1-02 Router 构造不调用 Invoker，不读取配置、`.env`、环境变量、凭据、数据库或文件，
+  也不导入在线 Transport；普通异常和 evaluator 异常正文不会进入 RouteAttempt 或
+  RouteResult。
+- M1-01 Registry 构造、注册、查询和选择均为纯内存操作；配置解析不读取额外环境变量、
+  凭据或 Transport。新增测试验证 import、Registry 构造和 legacy dry-run 不加载腾讯
+  在线 Transport。
 - Eastmoney Provider 模块导入和 Provider 构造不会加载 AkShare、pandas、requests 或任何
   在线客户端，也不会创建网络连接。
 - 当前没有默认或生产在线 Transport；Eastmoney Provider 没有正式配置项，也未进入
@@ -136,6 +277,44 @@
 
 ### Validation
 
+- M1-05D 首轮远端 push run `30599131830`：
+  Python 3.10.20 与 Python 3.13.14 均为 `839 passed`；
+  pull_request run `30599713228`：两个版本同样均为 `839 passed`。
+- 两个 run 的依赖安装、`git diff --check`、项目外 `compileall`、完整 pytest 和
+  工作区清洁步骤全部成功；没有 CI 修复提交。
+- M1-05C 模块入口定向测试为 `7 passed`，包含真实 `python -m` 子进程的安全门禁、
+  help、非法参数、退出码、导入隔离和文件零创建检查。
+- M1-05A/M1-05B Shadow 契约范围为 `53 passed`，M1-01 至 M1-05C 路由/Circuit
+  范围为 `316 passed`，storage/migration 回归为 `113 passed`，Tencent 契约回归为
+  `195 passed`。
+- Python 3.10.20 和 Python 3.13.9 完整离线测试均为 `839 passed`；双版本
+  `compileall`、普通/固定日期 dry-run、`git diff --check`、默认配置、在线 Transport/
+  `requests` 导入隔离及项目生成物检查均通过。
+- Prompt SHA-256 保持
+  `7d532b4031a223ec12e888b9e4fa236e313dfc08e20fe0f47c8aa87a49cd9cc3`；
+  固定日期 dry-run SHA-256 保持
+  `8069e90b2cb81d5530849de7ccb0b85e1070d8506258c4e5628375dbf8b539f0`。
+- M1-05A 新增 `45` 项纯离线测试；Python 3.10.20 和 Python 3.13.9 完整测试均为
+  `836 passed`。覆盖五重门禁、单次在线验证入口的默认拒绝、导入隔离、单调用预算、Circuit
+  CLOSED/OPEN/HALF_OPEN、Store fail-closed、部分结果、幂等持久化及正式报告隔离。
+- M1-04B 新增 `48` 项离线测试；包含既有回归的 M1-04B 定向范围为 `57 passed`，
+  M1-04A + M1-04B Circuit Breaker 范围为 `128 passed`，M1-01 至 M1-04B 路由与熔断
+  范围为 `263 passed`。Python 3.10.20 和 Python 3.13.9 完整测试均为 `791 passed`。
+- M1-04A 新增 `87` 项纯离线 Circuit Breaker 测试；M1-01 至 M1-04A 路由与熔断范围为
+  `222 passed`，Python 3.10.20 和 Python 3.13.9 完整测试均为 `743 passed`。覆盖模型
+  校验、三态转换、显式时间窗口、单探针、错误映射、敏感内容隔离、Router 未接入、
+  legacy 门禁和在线 Transport 导入隔离。
+- M1-03 新增 `50` 项纯离线 Retry 测试；M1-01 + M1-02 + M1-03 路由范围为
+  `135 passed`，Python 3.10.20 和 Python 3.13.9 完整测试均为 `656 passed`。覆盖错误
+  分类、Retry 成功/耗尽、rate limit/unknown 显式开关、统一预算、Fallback、不可变审计、
+  异常正文隔离、终止信号、legacy 和在线 Transport 导入门禁。
+- M1-02 新增 `33` 项纯离线 Fake Router 测试；M1-01 + M1-02 路由范围为 `85 passed`，
+  Python 3.10.20 和 Python 3.13.9 完整测试均为 `606 passed`。覆盖五种终态、停止与
+  Fallback、预算耗尽、skipped、阶段隔离、异常安全、不可变性和导入/构造隔离。
+- M1-01 新增 `52` 项离线测试；Python 3.10.20 和 Python 3.13.9 完整测试均为
+  `573 passed`。定向范围覆盖三模式、非法类型/字段、Registry 排序与重复注册、
+  capability/market 校验、disabled/stage 隔离、fallback、预算、构造和 Transport
+  导入隔离，并完整回归 Tencent、Eastmoney 和 CNInfo 契约。
 - P1-04A 文档链接、相对路径、证据日期和敏感模式检查通过；Python 3.10.20 与
   Python 3.13.9 完整离线测试均为 `453 passed`，双版本 compileall、普通/固定日期
   dry-run、固定哈希、离线 wheel 构建及双版本临时安装导入均通过。
@@ -149,6 +328,13 @@
 - P1-04B 双版本 compileall、普通/固定日期 dry-run、Prompt 与固定 dry-run 哈希复算、
   `PIP_NO_INDEX=1` 离线 wheel 构建、双版本临时安装及 CNInfo 导入均通过；wheel
   SHA-256 为 `ca13464eba4acd5450bbad3285da02be728ac4ee4739bd894637dfd5a0d627dc`。
+- P1-04B HEAD `ae55b9f2ca674a6744dd30c91e3316f400ce41a2` 的 GitHub Actions push 运行
+  [`30336191293`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30336191293)
+  和 pull_request 运行
+  [`30336306008`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30336306008)
+  均通过 Python 3.10/3.13 全部步骤；Draft
+  [`PR #6`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/pull/6)
+  保持未合并。
 - P4-02 定向离线测试：指标契约 `31 passed`，腾讯 Shadow `34 passed`，
   Provider contracts/errors `33 passed`，ProviderCall Repository `9 passed`。
 - Python 3.10/3.13 `compileall` 均通过且缓存输出位于项目外；普通 dry-run、Prompt

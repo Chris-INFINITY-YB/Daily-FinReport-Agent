@@ -318,6 +318,15 @@ Fixture、测试和文档。它没有实现在线 Transport，没有进入正式
 Analyzer、Prompt、Report、通知或数据库，也没有改变 Eastmoney 骨架。CNInfo 与
 Eastmoney 当前没有主备、降级或正式优先级。
 
+P1-04B HEAD `ae55b9f2ca674a6744dd30c91e3316f400ce41a2` 的 Python 3.10.20/3.13.9
+本地完整离线测试均为 `521 passed`；GitHub Actions push
+[`30336191293`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30336191293)
+和 pull_request
+[`30336306008`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30336306008)
+双版本门禁均通过，Draft
+[`PR #6`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/pull/6)
+保持未合并。这些结果只证明离线契约和工程门禁，不证明 CNInfo 在线可用。
+
 observed 门禁：
 
 1. 用户批准 `cninfo` Provider ID 和本 ADR 的来源选择；
@@ -327,6 +336,9 @@ observed 门禁：
 4. 只在真实形成可验证行记录时创建 observed Fixture；失败立即停止；
 5. `name`、`industry` 只有在 observed 契约、身份和空值测试全部通过后才可升级到 E3；
 6. E3、双版本离线门禁、在线安全审查和用户路由批准完成前，禁止进入正式路由。
+
+P1-04C 作为 observed 门禁保留，但按当前活跃优化路线暂时冻结；项目优先推进主链路
+迁移、结构化增量分析、Replay 和七日 Shadow。
 
 ## 9. P1-04C 前仍需确认
 

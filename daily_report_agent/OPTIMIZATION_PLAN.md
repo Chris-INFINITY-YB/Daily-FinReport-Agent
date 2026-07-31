@@ -1,5 +1,12 @@
 # 金融新闻抓取及分析智能体优化方案
 
+> 状态：**Superseded / 历史方案**
+> 本文件保存 2026-07-13 的初始诊断和长期设计背景，任务勾选与“推荐的下一步”不再代表
+> 当前实现状态。当前稳定能力与验收状态以 [`../README.md`](../README.md) 为准；当前
+> 实施顺序、范围冻结和主链路切换门禁以
+> [`../docs/production_pipeline_and_evidence_optimization_plan.md`](../docs/production_pipeline_and_evidence_optimization_plan.md)
+> 为准。
+
 > 适用项目：`daily_report_agent`  
 > 参考数据能力：`../a-stock-data/SKILL.md`  
 > 文档版本：v1.0  
