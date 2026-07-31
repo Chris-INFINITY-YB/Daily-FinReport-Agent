@@ -1,8 +1,9 @@
 # daily_report_agent 开发进度
 
-更新时间：2026-07-30
+更新时间：2026-07-31
 当前节点：阶段 2-B4 五日证据、合并候选完整离线回归及同候选受控在线验证均已通过；
-腾讯仍是默认关闭的 Shadow Provider，未进入正式或备用行情路由。并行 P1 的 Eastmoney
+M1-05B 新 Router 首次受控在线验收也已通过。腾讯仍是默认关闭的 Shadow Provider，
+未进入正式或备用行情路由。并行 P1 的 Eastmoney
 CN Profile 离线骨架和验收入口已完成，但三次独立受控观察均在 `r.json()` 边界失败，
 没有形成 observed Fixture；P1-04A 的 `cninfo` 架构建议已获批准，P1-04B 已完成独立
 CNInfo Profile 纯离线骨架与 synthetic Fixture，但没有在线 Transport 或生产接入。
@@ -49,8 +50,10 @@ preflight、单候选 Router、
 腾讯 QuoteProvider 边界和独立 Shadow SQLite 装配成一条可注入 Fake 的纯离线编排：
 只有 `provider_shadow + shadow_enabled + --allow-provider-shadow + 非 dry-run + 独立数据库`
 五重门禁通过才可进入；调用预算和 Provider 尝试数固定为 1，Retry/Fallback 均为 0。
-本任务没有执行新 Router 的在线取数，腾讯仍不是正式或备用数据源；首次单次受控在线验证
-属于需要另行授权的 M1-05B。
+M1-05B 已在精确 HEAD `9dab42ea03370e6828f429aa3890d7c0ab3fb724` 完成新 Router
+首次单次受控在线验证：固定 3 个证券、1 次逻辑调用、1 次 HTTP 请求，
+Retry/Fallback/并发均为 0，返回 3 项且独立 SQLite 验收通过。该单次成功不构成生产
+SLA，也不改变腾讯仍非正式或备用数据源的边界。
 
 `daily_report_agent` 是一个面向多数据源、证据驱动分析的每日市场信息智能体。当前正式
 链路继续使用既有 DataSource；新的 Provider 能力采用契约化、离线测试和旁路观察逐步
@@ -105,7 +108,8 @@ ProviderRegistry → SQLite Circuit preflight → ProviderRouter
 | M1-03：纯离线 Retry 状态机 | 本地离线实现完成 | 类型驱动错误分类、Provider 内 RetryAttempt 轨迹和统一物理调用预算已完成；没有 sleep、网络 Retry 或主链路接入 |
 | M1-04A：纯离线 Circuit Breaker | 本地离线实现完成 | 不可变状态快照、显式时间转换、安全错误映射和单探针契约已完成；没有 Router 集成、持久化或跨进程原子性 |
 | M1-04B：SQLite Circuit Breaker | 本地离线实现完成 | 0002 migration、Repository/Store、version/CAS 与跨连接单探针已完成 |
-| M1-05A：腾讯 Router Shadow 纯离线装配 | 本地离线实现完成 | 五重门禁、单调用预算、Circuit/Router、独立 SQLite 和 legacy 隔离已完成；新链路尚未执行在线请求 |
+| M1-05A：腾讯 Router Shadow 纯离线装配 | 本地离线实现完成 | 五重门禁、单调用预算、Circuit/Router、独立 SQLite 和 legacy 隔离已完成；该阶段本身未执行在线请求 |
+| M1-05B：腾讯新 Router 单次受控在线验收 | 本地验收完成 | 精确 HEAD 固定 3 证券，1 次逻辑调用/1 次 HTTP 请求，返回 3，SQLite/Circuit 验收通过；未接管正式报告 |
 | 当前开发状态 | 冻结净新增 Provider，准备主链路迁移 | 优先建设新旧双跑、正式路由、高可用、结构化增量分析、Replay 和七日 Shadow；默认路由未改变 |
 
 ### 当前基线
@@ -117,8 +121,11 @@ ProviderRegistry → SQLite Circuit preflight → ProviderRouter
 腾讯 Shadow 冻结基线测试：
 282 passed
 
-当前开发分支测试：
+M1-05A 完成时开发分支测试：
 836 passed（Python 3.10.20 / 3.13.9）
+
+M1-05C 当前开发分支测试：
+839 passed（Python 3.10.20 / 3.13.9）
 
 P1-04B 开发分支 HEAD：
 ae55b9f2ca674a6744dd30c91e3316f400ce41a2
@@ -186,6 +193,55 @@ QuoteProvider 已通过正式验收，也不授权进入正式分析、报告、
   和审计资产均未改变；
 - 以上只关闭 B4 合并候选门禁，不自动授权腾讯成为正式或备用行情源。
 
+### 2026-07-31 M1-05B 新 Router 首次受控在线验收
+
+M1-05B 与历史腾讯 B4 Shadow 验收是两条不同证据：B4 验证的是历史专用观察入口；
+M1-05A 只完成新 Registry/Circuit/Router 的纯离线装配；M1-05B 才是新 Router 的首次
+受控在线取数。
+
+唯一实际在线请求使用官方模块入口：
+
+```bash
+/opt/anaconda3/envs/quant_env/bin/python \
+  -m scripts.tencent_provider_shadow_once \
+  --allow-network-once \
+  --database /private/tmp/daily-report-agent-m1-05b-9dab42ea03370e6828f429aa3890d7c0ab3fb724.sqlite3 \
+  --symbols 600519,300750,000001 \
+  --timeout 10
+```
+
+从仓库根目录使用时，官方入口统一写为
+`python -m scripts.tencent_provider_shadow_once`。直接文件入口
+`python scripts/tencent_provider_shadow_once.py` 不是受支持的官方运行方式。
+
+| 项目 | 结果 |
+|---|---|
+| 日期 / 精确 HEAD | 2026-07-31 / `9dab42ea03370e6828f429aa3890d7c0ab3fb724` |
+| 固定证券 | `600519`、`300750`、`000001` |
+| 逻辑调用 / HTTP 请求 | 1 / 1 |
+| Retry / Fallback / 并发 | 0 / 0 / 0 |
+| timeout / 返回 / 错误 | 10 秒 / 3 / 0 |
+| PipelineRun | 1 条，`status=success` |
+| ProviderCall | 1 条，`tencent-finance/fetch_quotes`，success |
+| Security / MarketSnapshot | 3 / 3 |
+| Circuit | 1 条，`closed`，`consecutive_failures=0` |
+| RawResponse | 0 |
+| SQLite 检查 | integrity/foreign key 通过；重复业务键 0；孤儿快照 0 |
+| 临时库 SHA-256 | `ff9d427178a7134ef145cf7aeebe972f1ba8a5f7cd6d7954a021ea4793cc88b7` |
+| 清理 | 临时数据库、WAL、SHM 已删除；仓库未产生生成物 |
+
+首次尝试误用了 `python scripts/tencent_provider_shadow_once.py`，在导入项目包时即以
+`ModuleNotFoundError` 退出。该失败发生在任何业务或网络动作之前：HTTP、Provider 和
+逻辑调用均为 0，数据库、WAL、SHM 均未创建，因此不计入在线请求次数。修正后的模块入口
+执行是 M1-05B 唯一一次真实在线请求。验收过程没有读取或输出具体行情值、原始响应、
+完整请求 URL、Header、Cookie 或 Token。
+
+M1-05B 只证明新 Router 在固定、单次、受控条件下成功在线取数并完成独立持久化；它不
+证明生产 SLA、高可用、真实 Retry、第二来源 Fallback、限流或缓存已经完成。腾讯仍未
+进入 Analyzer、Prompt、Report 或 Notifier，`provider_primary` 未启用，腾讯也未成为
+正式或备用行情源；七个交易日的新 Router Shadow 尚未开始。Eastmoney News 与 CNInfo
+仍没有在线成功证据。
+
 ## 已完成的基础能力
 
 ### 工程与离线运行
@@ -237,9 +293,11 @@ QuoteProvider 已通过正式验收，也不授权进入正式分析、报告、
   timeout、临时 network 和 unavailable 只有在策略允许、Provider 次数和全局预算均有
   余量时才离线重试。empty/partial 继续只由 M1-02 evaluator/fallback 契约处理，不会
   自动重复调用同一 Provider；
-- M1-05A 只把腾讯 Quote 接入 `provider_shadow` 纯离线编排：Circuit OPEN skip 发生在
+- M1-05A 把腾讯 Quote 接入 `provider_shadow` 纯离线编排，M1-05B 随后完成一次固定范围
+  的新 Router 受控在线验收：Circuit OPEN skip 发生在
   Invoker 和预算前，单次最多一个 RouteAttempt/RetryAttempt/物理调用，结果只写独立
-  Shadow SQLite，不进入 Analyzer、Prompt、Report 或 Notifier。当前仍没有业务 merger、
+  Shadow SQLite，不进入 Analyzer、Prompt、Report 或 Notifier。单次成功没有改变默认
+  或生产路由。当前仍没有业务 merger、
   真实网络 Retry、第二 Provider Fallback、限流、缓存或 `provider_primary` 正式接入；
   详细边界见
   [`docs/tencent_provider_shadow_contract.md`](docs/tencent_provider_shadow_contract.md)；
@@ -553,8 +611,8 @@ B4/P1/P2 的历史任务、完成状态和合并门禁见
 后续路线包括：
 
 1. 保持 P1-04C、P3、公告、快讯和其他净新增 Provider 暂停；
-2. 继续保持 `legacy` 默认路由；完成 M1-05B 单次授权验证后再评审
-   `provider_shadow` 运行证据，`provider_primary` 仍不启用；
+2. 继续保持 `legacy` 默认路由；M1-05B 单次授权验证已经完成，下一步评审并制定七个
+   交易日 `provider_shadow` 计划，`provider_primary` 仍不启用；
 3. 建立 Provider Registry、能力级 Retry、Fallback、限流、缓存和持久化熔断；
 4. 腾讯接管单点行情快照；旧兼容适配器继续提供多日 `PriceWindow`，不得混淆语义；
 5. Eastmoney News 只有在许可、observed Fixture、在线 Transport 和受控在线门禁通过后

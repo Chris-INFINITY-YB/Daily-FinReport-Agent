@@ -1,8 +1,9 @@
 # 主链路迁移与证据驱动优化实施方案
 
 > 状态：**Active — 当前优先路线**
-> 文档版本：v2.0
+> 文档版本：v2.1
 > 制定日期：2026-07-28
+> 更新日期：2026-07-31
 > 适用项目：`daily_report_agent`
 > 基线：`origin/main` `1f2c8ffd2f498442e3652c1aa3c3d2a793a766a3`
 > 规划起点：P1-04B HEAD `ae55b9f2ca674a6744dd30c91e3316f400ce41a2`
@@ -35,6 +36,7 @@ P1-04B 已完成 CNInfo Profile 纯离线骨架、synthetic Fixture、本地双�
   `AnalysisInput` 已建立；
 - SQLite migration、事务、幂等新闻/行情写入、PipelineRun 和 ProviderCall 已建立；
 - Tencent QuoteProvider 已通过离线契约、受控在线验证、五日 Shadow 和候选门禁；
+- M1-05A 新 Router 已完成纯离线装配，M1-05B 已完成一次固定范围受控在线验收；
 - Eastmoney NewsProvider 已完成纯离线 Transport/Parser/Provider、synthetic 契约和
   存储幂等验证；
 - Eastmoney/CNInfo Profile 均有纯离线骨架，但都没有可用于生产的在线证据；
@@ -214,8 +216,10 @@ M1-04A 已完成独立的纯离线前置契约：不可变 CLOSED/OPEN/HALF_OPEN
 timezone-aware 时间转换、默认错误分类映射和单探针占用。M1-04B 已增加 0002 migration、
 Repository/Store、version/CAS 和 `BEGIN IMMEDIATE` 原子 preflight，并在两个独立 SQLite
 连接竞争下验证单探针。M1-05A 已在腾讯 Quote 的纯离线 `provider_shadow` 编排中把该
-Store 接到 Router 外层，OPEN 检查在 Invoker 和调用预算扣减前完成；新链路仍未执行真实
-Provider 请求。
+Store 接到 Router 外层，OPEN 检查在 Invoker 和调用预算扣减前完成。M1-05B 已在
+2026-07-31 对精确 HEAD `9dab42ea03370e6828f429aa3890d7c0ab3fb724` 完成一次固定
+3 证券、单逻辑调用、单 HTTP 请求、Retry/Fallback/并发均为 0 的新链路受控在线验收；
+该单次成功不构成生产 SLA 或七日 Shadow。
 
 Cron 每次运行都是新进程，纯内存状态无法跨运行生效。M1-04B 已在 SQLite 中持久化：
 
@@ -525,6 +529,7 @@ Replay 必须满足：
 - [x] M1-04A 实现纯离线 Circuit Breaker 三态转换、显式时间和单探针契约；
 - [x] M1-05A 将 Router、SQLite Circuit Breaker 和腾讯 Quote 接入纯离线
   `provider_shadow` 编排；
+- [x] M1-05B 完成 Tencent 新 Router 单次受控在线验证；
 - [ ] 将 Router 接入 `provider_primary` 正式编排；
 - [ ] 实现真实网络等待/Retry、退避调度和在线 Fallback；
 - [x] M1-04B 实现 SQLite 原子 Circuit Breaker 持久化和跨进程探针预留；
@@ -535,6 +540,7 @@ Replay 必须满足：
 
 ### M2：行情迁移
 
+- [x] 完成 `provider_shadow` 单次链路验收；
 - [ ] 腾讯单点行情进入 `provider_shadow`；
 - [ ] 旧历史行情通过兼容适配器继续生成 `PriceWindow`；
 - [ ] 禁止把当日涨跌写入多日区间涨跌；

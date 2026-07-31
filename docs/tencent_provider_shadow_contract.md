@@ -1,8 +1,8 @@
-# Tencent ProviderRouter Shadow 纯离线编排契约（M1-05A）
+# Tencent ProviderRouter Shadow 编排与首次在线验收契约（M1-05A/M1-05B）
 
-> 状态：Implemented — offline assembly only
-> 日期：2026-07-30
-> 在线状态：新 Router 尚未执行在线取数；M1-05B 需要单独授权
+> 状态：Implemented — offline assembly and one controlled online acceptance
+> 日期：2026-07-31
+> 在线状态：新 Router 已完成一次受控在线验收；未进入正式或备用路由
 
 ## 1. 结论与边界
 
@@ -23,8 +23,10 @@ ProviderRegistry
 success/empty/partial/failed/skipped 都不会把正式 Pipeline 标记为 partial，也不会阻断
 legacy 报告。
 
-本任务的 Provider、Invoker 和 Transport 验证全部使用 Fake/Fixture，没有发送真实网络
-请求。历史 `scripts/tencent_quote_shadow_observe.py`、B4 验收文档和冻结证据未修改。
+M1-05A 的 Provider、Invoker 和 Transport 验证全部使用 Fake/Fixture，没有发送真实
+网络请求。历史 `scripts/tencent_quote_shadow_observe.py` 的 B4 成功是旧 Shadow
+入口证据，不是新 Router 证据。M1-05B 随后在精确 M1-05A HEAD 完成新 Router 的首次
+单次受控在线验收；两者必须分开表述。
 
 ## 2. 五重模式门禁
 
@@ -156,25 +158,69 @@ factory 只会在全部模式门禁、Shadow 数据库初始化、Circuit allow/
 ProviderCall 建立之后由 Invoker 惰性调用。
 
 M1-05A 的全部测试注入 Fake Provider/Invoker；普通 pytest 全局阻断 socket 和 urllib。
-当前实现存在未来 M1-05B 所需的惰性装配边界，不表示该边界已获准在线执行。
+M1-05B 只在单独授权下通过专用入口使用过一次该惰性在线边界。官方入口固定为：
 
-## 8. 未完成与下一门禁
+```bash
+python -m scripts.tencent_provider_shadow_once
+```
 
-M1-05A 不完成：
+缺少 `--allow-network-once`、非法固定证券、非法 timeout 或不安全数据库路径时，入口在
+数据库创建、在线 Transport 构造和 Provider 调用前以退出码 2 拒绝。`--help` 离线显示
+并以退出码 0 结束。`python scripts/tencent_provider_shadow_once.py` 不是官方入口。
 
-- 新 Router 的真实在线取数；
+## 8. M1-05B 首次受控在线验收
+
+### 8.1 固定范围与结果
+
+| 项目 | 验收事实 |
+|---|---|
+| 日期 | 2026-07-31 |
+| 精确 HEAD | `9dab42ea03370e6828f429aa3890d7c0ab3fb724` |
+| 固定证券 | `600519`、`300750`、`000001` |
+| 逻辑调用 / HTTP 请求 | 1 / 1 |
+| Retry / Fallback / 并发 | 0 / 0 / 0 |
+| timeout | 10 秒 |
+| 返回项目 / 错误 | 3 / 0 |
+| PipelineRun | 1，`status=success` |
+| ProviderCall | 1，`tencent-finance/fetch_quotes`，success |
+| Security / MarketSnapshot | 3 / 3 |
+| Circuit | 1，`closed`，`consecutive_failures=0` |
+| RawResponse | 0 |
+| SQLite 检查 | integrity/foreign key 通过，重复业务键 0，孤儿快照 0 |
+| 临时库 SHA-256 | `ff9d427178a7134ef145cf7aeebe972f1ba8a5f7cd6d7954a021ea4793cc88b7` |
+| 清理 | 临时数据库、WAL、SHM 已删除；仓库工作区保持干净 |
+
+验收没有读取、记录或输出具体行情值、原始响应、完整请求 URL、Header、Cookie、Token
+或未脱敏异常正文。
+
+### 8.2 首次错误入口与唯一在线请求
+
+第一次尝试使用了非官方直接文件入口：
+
+```bash
+python scripts/tencent_provider_shadow_once.py
+```
+
+它在导入项目包前以 `ModuleNotFoundError` 失败。失败发生在任何业务或网络动作之前：
+HTTP 请求、Provider 调用和逻辑调用均为 0，数据库、WAL、SHM 均未创建，因此不计入在线
+请求次数。
+
+修正后的授权执行使用 `python -m scripts.tencent_provider_shadow_once`，是 M1-05B
+唯一一次真实在线请求。该事实只证明固定范围下的新 Router 单次链路可用，不是生产 SLA、
+高可用或正式路由证明。
+
+## 9. 未完成与下一门禁
+
+M1-05A/M1-05B 仍不完成：
+
 - `provider_primary`；
 - 腾讯成为正式或备用数据源；
 - 真实 Retry、第二来源 Fallback、限流、缓存或后台恢复；
 - Shadow 数据进入分析、Prompt、报告或通知；
 - Eastmoney/CNInfo 候选；
-- observed Fixture 或 B4 证据变更。
+- 七个交易日新 Router Shadow；
+- Eastmoney News 或 CNInfo 的在线成功证据；
+- observed Fixture 或历史 B4 证据变更。
 
-M1-05B 必须由用户针对精确 HEAD 单独授权，固定
-`600519、300750、000001`，逻辑调用和 HTTP 请求上限均为 1，Retry/Fallback/并发均为 0，
-timeout 不超过 10 秒，并使用项目外独立临时 SQLite。未获得该授权前不得执行。
-
-预留入口为 `scripts/tencent_provider_shadow_once.py`。它默认拒绝执行，要求
-`--allow-network-once`，强制固定证券、全新项目外数据库和不超过 10 秒的 timeout，并在
-底层 Transport 外再次拒绝第二次 HTTP 调用。M1-05A 只离线测试了该门禁和 Fake executor，
-没有执行联网开关。
+下一步先完成远端 CI/PR 门禁，再单独规划七个交易日 `provider_shadow`。不得把 M1-05B
+单次成功描述为生产 SLA、正式路由、高可用完成或七日 Shadow 已开始。

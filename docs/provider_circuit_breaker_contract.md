@@ -1,7 +1,7 @@
-# Provider Circuit Breaker 状态、SQLite 与 Shadow 契约（M1-04A 至 M1-05A）
+# Provider Circuit Breaker 状态、SQLite 与 Shadow 契约（M1-04A 至 M1-05B）
 
-> 状态：Implemented — offline transitions, SQLite persistence and Shadow assembly
-> 日期：2026-07-30
+> 状态：Implemented — offline transitions, SQLite persistence, Shadow assembly and one acceptance
+> 日期：2026-07-31
 > 范围：不可变模型、确定性三态转换、SQLite CAS、显式时间、跨连接单探针及腾讯
 > Shadow 调用顺序
 
@@ -19,8 +19,9 @@ provider_id + operation
 M1-04B 在该内核外增加 SQLite migration、Repository/Store、version/CAS 和
 `BEGIN IMMEDIATE` 原子事务。跨连接单探针已用临时文件数据库离线验证。M1-05A 已将该
 Store 接入腾讯 Quote 的 `provider_shadow` 纯离线编排；所有测试只使用 Fake/Fixture，
-没有发送网络请求。`provider_primary` 仍在业务副作用前拒绝，默认正式链路仍是
-`legacy`。
+没有发送网络请求。M1-05B 随后在精确 M1-05A HEAD 完成一次新 Router 受控在线验收，
+验收后 Circuit 为 closed、`consecutive_failures=0`。`provider_primary` 仍在业务副作用
+前拒绝，默认正式链路仍是 `legacy`。
 
 ## 2. 核心模型
 
@@ -196,11 +197,12 @@ version 冲突不会触发第二次 Provider 调用。
 ## 8. 未完成边界
 
 - `provider_primary` 正式编排；
-- 新 Router 的受控在线验证、恢复调度、sleep、退避或后台任务；
+- 新 Router 的生产运行、七个交易日 Shadow、恢复调度、sleep、退避或后台任务；
 - 真实 Retry 或第二 Provider Fallback；
 - 限流、缓存、freshness 和生产观测；
 - 默认配置或正式 DataSource、Analyzer、Report、Notifier 变更。
 - 跨主机共享数据库或 SQLite 之外的分布式协调。
 
-M1-05A 不授权在线取数。下一步 M1-05B 只能在用户单独授权后执行一次固定证券、单 HTTP
-请求、Retry/Fallback 均为 0 的受控在线验证。
+M1-05A 本身不授权在线取数。M1-05B 已在 2026-07-31 单独授权下完成一次固定 3 证券、
+单逻辑调用、单 HTTP 请求、Retry/Fallback/并发均为 0 的受控在线验证；这只证明单次
+Circuit/Router/持久化链路成功，不构成生产 SLA、真实恢复或高可用验收。

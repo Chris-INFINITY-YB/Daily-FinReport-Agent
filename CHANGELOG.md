@@ -11,6 +11,21 @@
 
 ### Added
 
+- 固化 M1-05B Tencent 新 Router 首次受控在线验收：
+  - 2026-07-31 在精确 HEAD `9dab42ea03370e6828f429aa3890d7c0ab3fb724` 固定
+    `600519、300750、000001`，完成 1 次逻辑调用和 1 次 HTTP 请求；
+  - Retry、Fallback、并发均为 0，timeout 为 10 秒，返回 3 项且错误为 0；
+  - 独立 SQLite 中 PipelineRun/ProviderCall/Circuit 为 1/1/1，
+    Security/MarketSnapshot 为 3/3，RawResponse 为 0，Circuit 为 closed；
+  - integrity/foreign key、重复业务键和孤儿快照检查通过，临时库 SHA-256 为
+    `ff9d427178a7134ef145cf7aeebe972f1ba8a5f7cd6d7954a021ea4793cc88b7`，验收后数据库、
+    WAL 和 SHM 已删除；
+  - 该证据与历史 B4 Shadow 成功及 M1-05A 纯离线装配明确分离，不表示生产 SLA、
+    `provider_primary`、正式/备用路由或七日 Shadow 完成。
+- 新增真实模块入口纯离线回归，直接启动
+  `python -m scripts.tencent_provider_shadow_once`，覆盖缺少授权开关、非法证券、
+  非法 timeout 和 help；固定退出码、数据库/WAL/SHM 零创建、在线 Transport 与
+  `requests` 零提前加载及安全错误输出。
 - 新增 M1-05A Tencent ProviderRouter Shadow 纯离线装配：
   - 新增独立 `tencent_provider_shadow` 编排边界，固定
     Registry → Circuit preflight → 单候选 Router → ProviderCall/Snapshot →
@@ -150,6 +165,9 @@
 
 ### Changed
 
+- Tencent 新 Router 单次验收的唯一官方入口统一为
+  `python -m scripts.tencent_provider_shadow_once`；直接文件入口
+  `python scripts/tencent_provider_shadow_once.py` 不再作为文档运行方式。
 - `pipeline` 新增默认 `null` 的 `provider_shadow_database_path`，`data_route` 保持
   `legacy`；
   `storage.enabled=false` 和 `providers.tencent_quote.shadow_enabled=false` 保持不变。
@@ -191,6 +209,11 @@
 
 ### Security
 
+- M1-05C 没有再次发送网络请求。首次 M1-05B 直接文件入口尝试在项目包导入前以
+  `ModuleNotFoundError` 失败，HTTP/Provider/逻辑调用均为 0，数据库/WAL/SHM 均未创建，
+  因此不计入在线请求；修正后的模块入口执行是 M1-05B 唯一真实在线请求。
+- M1-05B 验收记录不包含具体行情值、原始响应、完整请求 URL、Header、Cookie、Token
+  或未脱敏异常正文。
 - M1-05A 全部新增测试使用 Fake/Fixture，未发送网络请求。在线 Transport 仅在五重门禁和
   Circuit allow/probe 后由 Invoker 惰性构造；legacy、dry-run、缺 CLI 开关、缺独立路径、
   OPEN skip 和 Circuit Store 失败路径均不加载在线 Transport。
@@ -241,6 +264,18 @@
 
 ### Validation
 
+- M1-05C 模块入口定向测试为 `7 passed`，包含真实 `python -m` 子进程的安全门禁、
+  help、非法参数、退出码、导入隔离和文件零创建检查。
+- M1-05A/M1-05B Shadow 契约范围为 `53 passed`，M1-01 至 M1-05C 路由/Circuit
+  范围为 `316 passed`，storage/migration 回归为 `113 passed`，Tencent 契约回归为
+  `195 passed`。
+- Python 3.10.20 和 Python 3.13.9 完整离线测试均为 `839 passed`；双版本
+  `compileall`、普通/固定日期 dry-run、`git diff --check`、默认配置、在线 Transport/
+  `requests` 导入隔离及项目生成物检查均通过。
+- Prompt SHA-256 保持
+  `7d532b4031a223ec12e888b9e4fa236e313dfc08e20fe0f47c8aa87a49cd9cc3`；
+  固定日期 dry-run SHA-256 保持
+  `8069e90b2cb81d5530849de7ccb0b85e1070d8506258c4e5628375dbf8b539f0`。
 - M1-05A 新增 `45` 项纯离线测试；Python 3.10.20 和 Python 3.13.9 完整测试均为
   `836 passed`。覆盖五重门禁、单次在线验证入口的默认拒绝、导入隔离、单调用预算、Circuit
   CLOSED/OPEN/HALF_OPEN、Store fail-closed、部分结果、幂等持久化及正式报告隔离。

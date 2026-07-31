@@ -1,9 +1,9 @@
-# Provider 路由、Retry、Circuit 与 Shadow 契约（M1-01 至 M1-05A）
+# Provider 路由、Retry、Circuit 与 Shadow 契约（M1-01 至 M1-05B）
 
-> 状态：Implemented — pure offline foundation and Tencent Shadow assembly
-> 日期：2026-07-30
+> 状态：Implemented — offline foundation, Shadow assembly and one online acceptance
+> 日期：2026-07-31
 > 范围：Registry、ProviderRouter、错误分类、Retry、Circuit Breaker 内核与 SQLite Store、
-> 统一预算、配置门禁及腾讯 Quote Shadow 纯离线编排
+> 统一预算、配置门禁、腾讯 Quote Shadow 编排及首次受控在线验收
 
 ## 1. 结论
 
@@ -29,9 +29,11 @@ provider_primary
 门禁不会根据 `fallback_to_legacy` 静默退回。这样可以避免配置人员以为新链路已经运行，
 实际却得到旧链路报告或半成品报告。
 
-M1-05A 的新编排测试也只执行显式注入的 Fake/Fixture Provider，没有调用 Provider API。
-Retry 不执行 sleep、退避、抖动或网络等待。当前没有真实网络 Retry/Fallback、第二候选、
-限流、缓存或正式 Provider 编排；新 Router 的首次在线请求属于单独授权的 M1-05B。
+M1-05A 的新编排测试只执行显式注入的 Fake/Fixture Provider，没有调用 Provider API。
+M1-05B 随后在精确 HEAD `9dab42ea03370e6828f429aa3890d7c0ab3fb724` 完成新 Router
+首次单次受控在线验收。Retry 不执行 sleep、退避、抖动或网络等待。当前没有真实网络
+Retry/Fallback、第二候选、限流、缓存或正式 Provider 编排；M1-05B 单次成功不改变这些
+边界。
 
 ## 2. 配置契约
 
@@ -327,7 +329,7 @@ Router preflight
 编排中落实该顺序；Store 失败时 fail closed，不调用 Provider，Shadow 失败也不改变正式
 Pipeline 状态。
 
-## 10. M1-05A Tencent Shadow 编排
+## 10. M1-05A Tencent Shadow 编排与 M1-05B 验收
 
 M1-05A 只注册
 `tencent-finance + QUOTE + cn + shadow_eligible`，策略固定
@@ -360,12 +362,32 @@ partial 仍以 `provider_calls.status=success`、Shadow `pipeline_runs.status=pa
 完整边界见
 [`tencent_provider_shadow_contract.md`](tencent_provider_shadow_contract.md)。
 
+M1-05B 与历史 B4 Shadow 成功证据分离：B4 使用历史专用观察入口；M1-05A 只完成上述新
+Router 的纯离线装配；M1-05B 才在 2026-07-31 对新 Router 执行一次固定范围在线验收。
+官方入口为：
+
+```bash
+python -m scripts.tencent_provider_shadow_once
+```
+
+固定 `600519、300750、000001`，逻辑调用和 HTTP 请求均为 1，
+Retry/Fallback/并发均为 0，timeout 为 10 秒，返回 3 项。独立 SQLite 中
+PipelineRun/ProviderCall/Circuit 为 1/1/1，Security/MarketSnapshot 为 3/3，
+RawResponse 为 0；Circuit 为 closed 且连续失败为 0，完整性、外键、重复键和孤儿检查
+均通过。临时库 SHA-256 为
+`ff9d427178a7134ef145cf7aeebe972f1ba8a5f7cd6d7954a021ea4793cc88b7`，数据库、WAL 和
+SHM 已删除。
+
+首次错误使用 `python scripts/tencent_provider_shadow_once.py`，在项目包导入前失败，
+HTTP/Provider/逻辑调用均为 0，且没有创建数据库文件，因此不计入在线请求。修正后的
+模块入口执行是唯一真实在线请求。验收未输出具体行情值、原始响应或请求敏感信息。
+
 ## 11. 未完成边界
 
-下列能力不属于 M1-01 至 M1-05A：
+下列能力不属于 M1-01 至 M1-05B：
 
 - `provider_primary` 编排；
-- 新 Router 的受控在线验证或生产网络调用；
+- 新 Router 的生产网络运行或七个交易日 Shadow；
 - 部分结果业务合并；
 - 真实网络等待、退避、抖动、Retry 或在线 Fallback；
 - Circuit Breaker 的生产运行编排；
@@ -374,6 +396,7 @@ partial 仍以 `provider_calls.status=success`、Shadow `pipeline_runs.status=pa
 - Eastmoney/CNInfo 在线接入；
 - 旧 DataSource 或自由文本 Analyzer 删除。
 
-`provider_shadow` 已具备纯离线装配和严格门禁，但尚未通过 M1-05B 新链路在线验证；
-`provider_primary` 继续拒绝。在在线授权和后续迁移验收前，默认配置必须保持 `legacy`，
-腾讯不得被描述为正式或备用行情源。
+`provider_shadow` 已具备纯离线装配、严格门禁和一次 M1-05B 新链路在线验收；
+`provider_primary` 继续拒绝。在七日 Shadow 和后续迁移验收前，默认配置必须保持
+`legacy`，腾讯不得被描述为正式或备用行情源，也不得进入 Analyzer、Prompt、Report
+或 Notifier。
