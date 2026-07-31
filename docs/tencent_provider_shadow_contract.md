@@ -222,5 +222,34 @@ M1-05A/M1-05B 仍不完成：
 - Eastmoney News 或 CNInfo 的在线成功证据；
 - observed Fixture 或历史 B4 证据变更。
 
-下一步先完成远端 CI/PR 门禁，再单独规划七个交易日 `provider_shadow`。不得把 M1-05B
-单次成功描述为生产 SLA、正式路由、高可用完成或七日 Shadow 已开始。
+M1-05D 已完成首轮远端 CI/PR 门禁；下一步单独规划七个交易日 `provider_shadow`。不得把
+M1-05B 单次成功或 M1-05D 远端门禁描述为生产 SLA、正式路由、高可用完成或七日 Shadow
+已开始。
+
+## 10. M1-05D 远端 CI/PR 门禁
+
+2026-07-31，首轮远端验收候选固定为：
+
+```text
+branch: codex/m1-05a-tencent-provider-shadow
+HEAD:   924ce20b0e0a424c909da593458f9f70584c0ce2
+```
+
+PR #6 已合并，P1-04B HEAD `ae55b9f2ca674a6744dd30c91e3316f400ce41a2`
+已是 `origin/main` 的祖先。因此无需 rebase、cherry-pick 或历史重写，M1 分支直接建立
+以 `main` 为 base 的 Draft
+[`PR #7`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/pull/7)。
+
+远端结果：
+
+| 事件 | Actions run | Python 3.10 | Python 3.13 |
+|---|---:|---|---|
+| push | `30599131830` | 3.10.20，`839 passed` | 3.13.14，`839 passed` |
+| pull_request | `30599713228` | 3.10.20，`839 passed` | 3.13.14，`839 passed` |
+
+四个 Job 的依赖安装、`git diff --check`、项目外 `compileall`、完整 pytest 和工作区清洁
+检查全部成功，没有 CI 修复提交。
+
+该门禁不改变第 9 节边界：默认仍为 `legacy`，`provider_primary` 未启用，腾讯未进入
+Analyzer、Prompt、Report 或 Notifier，也不是正式或备用行情源。M1-05D 没有调用任何
+金融数据 Provider；下一门禁是七个交易日 Tencent ProviderRouter Shadow 运行计划。

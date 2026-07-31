@@ -11,6 +11,14 @@
 
 ### Added
 
+- 建立 M1-05D 远端双版本 CI/PR 门禁：
+  - 将 `codex/m1-05a-tencent-provider-shadow` 推送到同名远端分支；
+  - PR #6 已合并且 P1-04B HEAD 已进入 `main` 祖先链，因此创建以 `main` 为 base、
+    当前 M1 分支为 head 的 Draft
+    [`PR #7`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/pull/7)，没有
+    rebase、cherry-pick、历史重写或 P1-04B 重复 diff；
+  - 首轮验收 HEAD `924ce20b0e0a424c909da593458f9f70584c0ce2` 的 push run
+    `30599131830` 和 pull_request run `30599713228` 均通过。
 - 固化 M1-05B Tencent 新 Router 首次受控在线验收：
   - 2026-07-31 在精确 HEAD `9dab42ea03370e6828f429aa3890d7c0ab3fb724` 固定
     `600519、300750、000001`，完成 1 次逻辑调用和 1 次 HTTP 请求；
@@ -209,6 +217,11 @@
 
 ### Security
 
+- M1-05D 只访问 GitHub remote、PR 和 Actions，没有运行任何 Provider API、M1-05B
+  入口或 allow-network 开关，没有创建行情数据库或读取具体行情值。
+- Draft PR #7 保持 `legacy` 默认路由和全部生产边界；远端门禁成功不授权
+  `provider_primary`、腾讯正式/备用路由、Analyzer/Prompt/Report/Notifier 接入或七日
+  Shadow。
 - M1-05C 没有再次发送网络请求。首次 M1-05B 直接文件入口尝试在项目包导入前以
   `ModuleNotFoundError` 失败，HTTP/Provider/逻辑调用均为 0，数据库/WAL/SHM 均未创建，
   因此不计入在线请求；修正后的模块入口执行是 M1-05B 唯一真实在线请求。
@@ -264,6 +277,11 @@
 
 ### Validation
 
+- M1-05D 首轮远端 push run `30599131830`：
+  Python 3.10.20 与 Python 3.13.14 均为 `839 passed`；
+  pull_request run `30599713228`：两个版本同样均为 `839 passed`。
+- 两个 run 的依赖安装、`git diff --check`、项目外 `compileall`、完整 pytest 和
+  工作区清洁步骤全部成功；没有 CI 修复提交。
 - M1-05C 模块入口定向测试为 `7 passed`，包含真实 `python -m` 子进程的安全门禁、
   help、非法参数、退出码、导入隔离和文件零创建检查。
 - M1-05A/M1-05B Shadow 契约范围为 `53 passed`，M1-01 至 M1-05C 路由/Circuit

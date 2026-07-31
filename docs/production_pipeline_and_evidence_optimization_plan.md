@@ -37,6 +37,8 @@ P1-04B 已完成 CNInfo Profile 纯离线骨架、synthetic Fixture、本地双�
 - SQLite migration、事务、幂等新闻/行情写入、PipelineRun 和 ProviderCall 已建立；
 - Tencent QuoteProvider 已通过离线契约、受控在线验证、五日 Shadow 和候选门禁；
 - M1-05A 新 Router 已完成纯离线装配，M1-05B 已完成一次固定范围受控在线验收；
+- M1-05D 已建立 Draft PR #7；首轮 push/pull_request Python 3.10/3.13 双版本远端离线
+  门禁均通过；
 - Eastmoney NewsProvider 已完成纯离线 Transport/Parser/Provider、synthetic 契约和
   存储幂等验证；
 - Eastmoney/CNInfo Profile 均有纯离线骨架，但都没有可用于生产的在线证据；
@@ -530,6 +532,7 @@ Replay 必须满足：
 - [x] M1-05A 将 Router、SQLite Circuit Breaker 和腾讯 Quote 接入纯离线
   `provider_shadow` 编排；
 - [x] M1-05B 完成 Tencent 新 Router 单次受控在线验证；
+- [x] M1-05D 推送 M1 分支、建立 Draft PR，并通过首轮 push/pull_request 双版本 CI；
 - [ ] 将 Router 接入 `provider_primary` 正式编排；
 - [ ] 实现真实网络等待/Retry、退避调度和在线 Fallback；
 - [x] M1-04B 实现 SQLite 原子 Circuit Breaker 持久化和跨进程探针预留；

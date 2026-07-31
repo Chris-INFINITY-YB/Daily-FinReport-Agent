@@ -3,7 +3,8 @@
 更新时间：2026-07-31
 当前节点：阶段 2-B4 五日证据、合并候选完整离线回归及同候选受控在线验证均已通过；
 M1-05B 新 Router 首次受控在线验收也已通过。腾讯仍是默认关闭的 Shadow Provider，
-未进入正式或备用行情路由。并行 P1 的 Eastmoney
+未进入正式或备用行情路由。M1-05D 已建立 Draft PR #7，并在首轮 push 与
+pull_request Actions 中通过 Python 3.10/3.13 双版本离线门禁。并行 P1 的 Eastmoney
 CN Profile 离线骨架和验收入口已完成，但三次独立受控观察均在 `r.json()` 边界失败，
 没有形成 observed Fixture；P1-04A 的 `cninfo` 架构建议已获批准，P1-04B 已完成独立
 CNInfo Profile 纯离线骨架与 synthetic Fixture，但没有在线 Transport 或生产接入。
@@ -110,6 +111,7 @@ ProviderRegistry → SQLite Circuit preflight → ProviderRouter
 | M1-04B：SQLite Circuit Breaker | 本地离线实现完成 | 0002 migration、Repository/Store、version/CAS 与跨连接单探针已完成 |
 | M1-05A：腾讯 Router Shadow 纯离线装配 | 本地离线实现完成 | 五重门禁、单调用预算、Circuit/Router、独立 SQLite 和 legacy 隔离已完成；该阶段本身未执行在线请求 |
 | M1-05B：腾讯新 Router 单次受控在线验收 | 本地验收完成 | 精确 HEAD 固定 3 证券，1 次逻辑调用/1 次 HTTP 请求，返回 3，SQLite/Circuit 验收通过；未接管正式报告 |
+| M1-05D：M1 路由与 Shadow 远端门禁 | Draft PR 首轮门禁通过 | Draft PR #7；push/PR Actions 的 Python 3.10/3.13 安装、pytest、compileall、whitespace 和工作区清洁均通过 |
 | 当前开发状态 | 冻结净新增 Provider，准备主链路迁移 | 优先建设新旧双跑、正式路由、高可用、结构化增量分析、Replay 和七日 Shadow；默认路由未改变 |
 
 ### 当前基线
@@ -241,6 +243,28 @@ M1-05B 只证明新 Router 在固定、单次、受控条件下成功在线取�
 进入 Analyzer、Prompt、Report 或 Notifier，`provider_primary` 未启用，腾讯也未成为
 正式或备用行情源；七个交易日的新 Router Shadow 尚未开始。Eastmoney News 与 CNInfo
 仍没有在线成功证据。
+
+### 2026-07-31 M1-05D 远端双版本 CI/PR 门禁
+
+- 分支：`codex/m1-05a-tencent-provider-shadow`；
+- 首轮远端验收 HEAD：`924ce20b0e0a424c909da593458f9f70584c0ce2`；
+- Draft PR：
+  [`#7`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/pull/7)，
+  base=`main`，head=`codex/m1-05a-tencent-provider-shadow`；
+- push Actions：
+  [`30599131830`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30599131830)；
+- pull_request Actions：
+  [`30599713228`](https://github.com/Chris-INFINITY-YB/Daily-FinReport-Agent/actions/runs/30599713228)；
+- 两个 run 的 Python 3.10.20 和 Python 3.13.14 Job 均为 `839 passed`；
+- 两个版本的依赖安装、`git diff --check`、项目外 `compileall`、完整 pytest 和工作区
+  清洁检查均通过；
+- 没有因 CI 失败创建修复提交。
+
+PR #6 已合并，P1-04B HEAD 已是 `origin/main` 的祖先；因此 PR #7 直接以 `main` 为 base，
+没有 rebase、cherry-pick 或历史重写，也没有重复 P1-04B diff。PR #7 保持 Draft，远端
+门禁通过不表示 `provider_primary`、正式或备用路由、生产 SLA 或七个交易日 Shadow
+获批。M1-05D 没有发送 Provider 网络请求；下一门禁是七个交易日
+`provider_shadow` 运行计划。
 
 ## 已完成的基础能力
 
